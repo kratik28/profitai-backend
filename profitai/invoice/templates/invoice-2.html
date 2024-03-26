@@ -1,0 +1,160 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zxx">
+<head>
+    <title>Invoice</title>
+    <meta charset="UTF-8">
+
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+
+    <!-- Google fonts -->
+    <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900">
+
+</head>
+<body>
+
+<!-- Invoice 2 start -->
+<div class="invoice-2 invoice-content"> 
+    <header>
+        <div class="header-line"></div>
+        <div class="gray_slide"></div>
+        <div class="header_back"></div>
+        <div class="header_slide">
+            <img src="{% static 'logo.png' %}">
+        </div>
+        <div class="gst_number">GSTIN:{{ business_profile.0.gst_number|default:'---' }}<div>
+        <table class="summary_table">
+            <tr class="summary_tr">
+                <td class="left">Invoice No.</td>
+                <td class="right">{{invoice.0.invoice_counter}}</td>
+            </tr>
+            <tr class="summary_tr">
+                <td class="left">Date</td>
+                <td class="right">{{order_date|date:"M d, Y"}}</td>
+            </tr>
+            <tr class="summary_tr">
+                <td class="left">Payment Option:</td>
+                <td class="right">{{invoice.0.payment_option}}</td>
+            </tr>
+        </table>
+    </header>
+    <div class="customer">
+        <h4 class="inv-title-1">Invoice From</h4>
+        <h2 class="name">{{business_profile.0.business_name}}</h2>
+        <p class="invo-addr-1">
+            <a href="mailto:{{business_profile.0.email}}">{{business_profile.0.email}}</a><br/>
+            {{business_profile.0.address1}}<br/>
+            {{business_profile.0.city}} {{business_profile.0.zipcode}}, {{business_profile.0.state}}<br/>
+        </p>
+    </div>
+    <div class="company">
+        <h4 class="inv-title-1">Invoice To</h4>
+        <h2 class="name">{{customer.customer_name}}</h2>
+        <p class="gst">+91 {{customer.phone_number}}</p>
+        <p class="invo-addr-2">
+            <a href="mailto:{{invoice.0.customer.email}}">{{customer.email}}</a><br/>
+            {% if customer.address%}
+            {{customer.address}}<br/>
+            {% else %}
+            {{business_profile.0.address1}}, {{business_profile.0.city}} {{business_profile.0.zipcode}}<br/>
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="invoice-center">
+        <div class="margin_10">
+            <table class="table1">
+                <tr class="th1">
+                    <th class="text-start">Product Name</th>
+                    <th class="text-center">HSN</th>
+                    <th class="text-center">Batch</th>
+                    <th class="text-center">Exp.</th>
+                    <th class="text-center">Quty.</th>
+                    <th class="text-end">Mrp.</th>
+                    <th class="text-center">Rate</th>
+                    <th class="text-center">CGST</th>
+                    <th class="text-center">SGST</th>
+                    <th class="text-center">Disc%</th>
+                    <th class="text-end">Amount</th>
+                </tr>
+                {% for x in content|slice:"30" %}
+                <tr class="tr1">
+                    <td class="text-start">{{x.0.product_name}}</td>
+                    <td class="text-center">{{x.0.hsn_number}}</td>
+                    <td class="text-end">{{x.0.batch_number}}</td>
+                    <td class="text-center">{% with parts=x.0.expiry_date|cut:"T" %}{{ parts|slice:"2:7" }}{% endwith %}</td>
+                    <td class="text-center">{{x.1.quantity}}</td>
+                    <td class="text-end">{{x.0.mrp_price}}</td>
+                    <td class="text-end">{{x.0.sales_price|floatformat:2}}</td>
+                    <td class="text-center">{{x.0.tax}}</td>
+                    <td class="text-center">{{x.0.tax}}</td>
+                    <td class="text-center">{{x.0.discount}}</td>
+                    <td class="text-end">{{x.1.price}}</td>
+                </tr>
+                {% endfor %}
+            </table>         
+        </div>
+        <table class="table1">
+            <tbody>
+            <tr
+            {% if flage == 'subtotal_bar' %}
+                class="break"
+            {% else %}
+                class="tr1"
+            {% endif %}
+            >
+                <td colspan="5" class="total" >SUBTOTAL</td>
+                <td class="total">{{invoice.0.sub_total}}</td>
+            </tr>
+            <tr>
+                <td colspan="5" class="sub-totel" >TAX</td>
+                <td class="sub-totel">{{invoice.0.tax}}</td>
+            </tr>
+            <tr class="tr1">
+                <td colspan="5" class="sub-totel" >DISCOUNT</td>
+                <td class="sub-totel">{{invoice.0.discount}}</td>
+            </tr>
+            {% if history%}
+            <tr class="tr1">
+                <td class="text-history">Payment History:</td>
+                <td colspan="4" class="grand">GRAND TOTAL</td>
+                <td class="grand">{{invoice.0.grand_total}}</td>
+            </tr>
+                <td class="previous">Previously Paid: {{history}}</td>
+                <td colspan="4" class="sub-totel" >TOTAL PAID</td>
+                <td class="sub-totel">{{invoice.0.paid_amount}}</td>
+            </tr>
+            {% else %}
+            <tr class="tr1">
+                <td colspan="5" class="grand">GRAND TOTAL</td>
+                <td class="grand">{{invoice.0.grand_total}}</td>
+            </tr>
+                <td colspan="5" class="sub-totel" >TOTAL PAID</td>
+                <td class="sub-totel">{{invoice.0.paid_amount}}</td>
+            </tr>
+            {% endif %}
+            <tr class="tr1">
+                <td colspan="5" class="sub-totel" >TOTAL REMAINING</td>
+                <td class="sub-totel">{{invoice.0.remaining_total}}</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+        {% if flage == 'busines_name' %}
+            <p class="break"></p>
+        {% endif %}
+        <div class="bottom">
+            <div class="invoice-number-inner">
+                <div class="invoice-contact">Invoice was created on a computer and is valid without the signature and seal.</div>
+                <div class="Authonticate">
+                    <img src="{% static 'Authonticate.png' %}">
+                </div>
+                <h2 class="name"><i> Authorised Signatory</i></h2>
+            </div>
+        </div>
+    <footer class="footer">
+    </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,782 @@
+from django.shortcuts import render
+from django.http import Http404, JsonResponse
+from invoice.models import Invoice
+from invoice.serializers import InvoiceSerializer
+from user_profile.models import UserProfile, UserProfileOTP, BusinessProfile, Customer
+from user_profile.pagination import InfiniteScrollPagination
+from user_profile.serializers import  CustomerListSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, UserProfileSerializer
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+import random
+from datetime import datetime
+from user_profile.models import UserProfile
+from master_menu.models import BusinessType, Industry
+from rest_framework_simplejwt.tokens import RefreshToken
+from master_menu.models import BusinessType
+from django.db.models import Sum  ,Count     
+import indiapins
+from django.db.models import OuterRef, Subquery
+from django.utils import timezone
+from rest_framework.decorators import api_view
+from django.db.models import Q,F, ExpressionWrapper, DecimalField
+
+
+
+class CheckPhoneNumberView(APIView):
+    def post(self, request):
+        phone_number = request.data.get('phone_number')
+
+        if len(str(phone_number)) == 10:
+            user = UserProfile.objects.filter(
+                phone_number=phone_number).first()
+            if user:
+                if user.is_active:
+                    otp =   123456        #random.randint(100000, 999999)
+                    otp_obj = UserProfileOTP.objects.filter(
+                        user_profile=user, phone_number=user.phone_number, is_verified=False).first()
+                    if otp_obj:
+                        object = UserProfileOTP.objects.get(otp = str(otp_obj))
+                        object.otp = otp
+                        object.save()
+
+                    else:
+                        otp_obj = UserProfileOTP.objects.create(
+                            user_profile=user, phone_number=user.phone_number, otp=otp, is_verified=False)
+                    return JsonResponse({'success': 'user found', 'otp': otp}, status=200)
+                else:
+                    return JsonResponse({'error': 'User is not active'}, status=400)
+            else:
+                user = UserProfile.objects.create(
+                    phone_number=phone_number, is_active=True, username=phone_number)
+                if user:
+                    if user.is_active:
+                        otp = 123456 #random.randint(100000, 999999)
+                        otp_obj = UserProfileOTP.objects.filter(
+                            user_profile=user, phone_number=user.phone_number, is_verified=False).first()
+                        if otp_obj:
+                            pass
+                        else:
+                            otp_obj = UserProfileOTP.objects.create(
+                                user_profile=user, phone_number=user.phone_number, otp=otp, is_verified=False)
+                        return JsonResponse({'success': 'user created', 'otp': otp}, status=200)
+                    else:
+                        return JsonResponse({'error': 'User is not active'}, status=400)
+        else:
+            return JsonResponse({'message': 'Please Enter Valid phone_number'}, status=400)
+
+
+class CustomUserOTPLoginView(APIView):
+    
+    def post(self, request):
+        phone_number = request.data.get('phone_number')
+        otp = request.data.get('otp')
+        if phone_number and otp:
+            try:
+                user = UserProfile.objects.get(phone_number=phone_number)
+                authenticated_user = user.validate_otp(user, otp)
+                if authenticated_user:
+                    # Generate JWT tokens
+                    user.last_login = timezone.now()
+                    user.save()
+                    query = UserProfile.objects.get(phone_number=phone_number)
+
+                    tokens = UserTokenObtainPairSerializer.get_token(user)
+                    Dataserializer = UserProfileSerializer(query)
+
+                    business_profile=BusinessProfile.objects.filter(user_profile_id = user.id).first()
+                    flag = True if business_profile is not None else False
+                    if flag==True and business_profile.is_active==True:
+                    
+                        response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message":"UserProflie Found Successfully!",
+                        "token": tokens,
+                        "business_profile" : flag
+                        }
+                    elif flag==True and business_profile.is_active==False:
+                        response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message":"your account is deleted by you contact administration!",
+                        "is_deleted" : True,
+                        "business_profile" :True,
+                        "phone number":phone_number
+                        }
+                    else:
+                         response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message":"UserProflie Found Successfully!",
+                        "token": tokens,
+                        "data": Dataserializer.data,
+                        "business_profile" : flag
+                        }
+                    return Response(response, status=status.HTTP_200_OK)
+                else:
+                    return Response({"status_code": 200,
+                    "status": "error",
+                    "message":"your OTP is invalid!"})
+            except UserProfile.DoesNotExist:
+                pass
+
+        return Response({'error': 'Invalid OTP or phone_number'}, status=status.HTTP_401_UNAUTHORIZED)
+
+class ProtectedAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Your authenticated view logic here
+        phone_number = request.user.phone_number
+        return Response({"status_code": 200,
+                         "status": "succses",
+                        "message": 'You are authenticated',
+                        "phone_number":phone_number}, status=status.HTTP_200_OK)
+
+
+class BusinessProfileListCreateAPIView(APIView):
+    
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+      
+        try:
+            instance =BusinessProfile.objects.filter(user_profile_id = request.user.id,is_active= True).first()
+            if instance== None:
+                # Create a new object
+                user_profile = UserProfile.objects.filter(id=request.user.id).first()
+                request.data['user_profile'] = request.user.id   
+                if request.data.get('business_type') == 'others':                   
+                    business_type = BusinessType.objects.get_or_create(business_type=request.data["new_field1"].lower())
+                    request.data["business_type"] = business_type[0].id
+                elif isinstance(request.data.get('business_type'),int):
+                    business_type = BusinessType.objects.filter(id = request.data.get('business_type')).first()
+                    request.data["business_type"] = business_type.id
+                else:
+                    return Response({"message": "please fill corerct business_type"})
+
+                if request.data.get('industry') == 'others':
+                    industry_name = Industry.objects.get_or_create(industry_name=request.data["new_field2"].lower())
+                    request.data["industry"] = industry_name[0].id
+                elif isinstance(request.data.get('business_type'),int):
+                    business_type = Industry.objects.filter(id = request.data.get('industry')).first()
+                    request.data["industry"] = business_type.id
+                else:
+                    return Response({"message": "please fill corerct industry_name"})
+                userprofileserializer = UserProfileSerializer(user_profile)
+                serializer = BusinessProfileSerializer(data=request.data)
+                
+                if serializer.is_valid():
+                    serializer.save()
+                    # BusinessProfile.objects.filter(id = serializer.data['id']).update(user_profile = request.user.id)
+                    response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message":"BusinessProfile Created Successfully!",
+                        "data": serializer.data,
+                        "user_profile_phone":userprofileserializer.data['phone_number']
+                    }
+                    return Response(response)
+                else:
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                #objects allready found
+                serializer = BusinessProfileSerializer(instance)
+                serializer.data["user_profile_phone"] = request.user.phone_number
+                response_instance= {
+                        "status_code": 200,
+                        "status": "success",
+                        "message":"BusinessProfile Found Successfully!",
+                        "data": serializer.data,
+                        "user_profile_data": UserProfileGetSerializer(request.user,context={"request":request},partial=True).data,
+                    }
+                return Response(response_instance)
+            
+        except Exception as e:
+            print(f"error {e}")
+            response = {
+                "status_code": 500,
+                "status": "error",
+                "message": "Business Profile Not Created."
+            }
+            return Response(response, status=status.HTTP_404_NOT_FOUND)
+
+
+class BusinessProfileRetrieveUpdateDestroyAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self, request):
+        try:
+            businessprofile= BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            return businessprofile
+        except BusinessProfile.DoesNotExist:
+            status.HTTP_404_NOT_FOUND
+
+    def get(self, request):
+        # Retrieve a single object
+        instance = self.get_object(request)
+        
+        if instance!= None:
+            serializer = BusinessProfileSerializer(instance)
+            response= {
+                    "status_code": 200,
+                    "status": "success",
+                    "message":"BusinessProfile Found Successfully!",
+                    "data": serializer.data,
+                    "user_profile_phone": request.user.phone_number
+                }
+            return Response(response)
+        else:
+            return Response({"status_code": 200,
+                    "status": "error",
+                "massage": "please create BusinessProfile"})
+
+    def put(self, request):
+        # Update an existing object
+        try:
+            instance = self.get_object(request)
+            if instance:
+                request.data["user_profile"]= request.user.id
+                request.data["id"] = instance.id
+                if request.data.get('business_type') == 'others':
+                    business_type = BusinessType.objects.get_or_create(
+                        business_type=request.data["new_field1"].lower())
+                    request.data["business_type"] = business_type[0].id
+                elif isinstance(request.data.get('business_type'),int):
+                    business_type = BusinessType.objects.filter(id = request.data.get('business_type')).first()
+                    request.data["business_type"] = business_type.id
+                else:
+                    return Response({"message": "please fill corerct business_type"})
+
+                if request.data.get('industry') == 'others':
+                    industry_name = Industry.objects.get_or_create(
+                        industry_name=request.data["new_field2"].lower())
+                    request.data["industry"] = industry_name[0].id
+                elif isinstance(request.data.get('business_type'),int):
+                    business_type = Industry.objects.filter(id = request.data.get('industry')).first()
+                    request.data["industry"] = business_type.id
+                else:
+                    return Response({"message": "please fill corerct industry_name"})
+                serializer = BusinessProfileSerializer(instance, data=request.data)
+                if serializer.is_valid():
+                    serializer.save()
+                    response = {
+                            "status_code": 200,
+                            "status": "success",
+                            "message":"BusinessProfile Update Successfully!",
+                            "data": serializer.data
+                        }
+                    return Response(response)
+                else:
+                    response ={"status_code": 200,
+                            "status": "success",
+                            "message":"BusinessProfile Update Successfully!",
+                            "data": serializer.errors}
+                    print(serializer.errors)
+                    return Response(response, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"status_code": 200,
+                            "status": "error",
+                            "massage": "please create BusinessProfile"})
+
+            
+        except Exception as e:
+            print(f"error's {e}")
+            response = {
+                "status_code": 500,
+                "status": "error",
+                "message": "BusinessProfile Not update."
+            }
+            return Response(response, status=status.HTTP_404_NOT_FOUND)
+
+class CustomerListCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+
+
+    def get(self, request):
+        businessprofile=BusinessProfile.objects.filter(user_profile = request.user,is_active= True).first()
+        queryset = Customer.objects.filter(business_profile=businessprofile).order_by('-id')
+        queryset = queryset.annotate(
+            last_invoice_grand_total=Subquery(
+                Invoice.objects.filter(customer=OuterRef('id')).order_by('-id').values('grand_total')[:1]
+            ),
+            last_invoice_status=Subquery(
+                Invoice.objects.filter(customer=OuterRef('id')).order_by('-id').values('status')[:1]
+            )
+        )
+        paginator = self.pagination_class()
+        result_page = paginator.paginate_queryset(queryset, request, view=self)
+        serializer = CustomerallSerializer(result_page, many=True)
+        response = {
+            "status_code": 200,
+            "status": "success",
+            "message": "all customers found",
+            "data": serializer.data,
+            "next": paginator.get_next_link(),  # Include the next page link
+        }
+        return Response(response)
+    def post(self, request):
+        try:
+            phone_number = request.data["phone_number"]
+            queryset = Customer.objects.filter(phone_number=phone_number)
+            if queryset.exists():
+                data = queryset.first()
+                serializer = CustomerSerializer(data)
+                response={
+                    "status_code": 200,
+                    "status": "success",
+                    "message":"customer phone number allready exist",
+                    "data" : serializer.data
+                }
+                return Response(response)
+            else:
+                businessprofile=BusinessProfile.objects.filter(user_profile = request.user,is_active= True).first()
+                request.data["business_profile"] = businessprofile.id
+                serializer = CustomerSerializer(data=request.data)
+                if serializer.is_valid():
+                    serializer.save()
+                    response = {
+                            "status_code": 200,
+                            "status": "success",
+                            "message":"customer create Successfully!",
+                            "data": serializer.data
+                        }
+                    return Response(response)
+                else:
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"error's {e}")
+            response = {
+                "status_code": 500,
+                "status": "error",
+                "message": "costumer Not create."
+            }
+            return Response(response, status=status.HTTP_404_NOT_FOUND)
+
+class CustomerSearchAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+    def get(self, request):
+        try:
+            search_query = request.GET.get('search')
+            search_type=request.GET.get('type')
+            businessprofile=BusinessProfile.objects.filter(user_profile = request.user,is_active= True).first()
+            if search_query !="":
+                customers = Customer.objects.filter(
+                    Q(customer_name__icontains=search_query) |
+                    Q(phone_number__icontains=search_query) |
+                    Q(gst_number__icontains=search_query) 
+                    
+                )
+                if customers and search_type == "global":
+                    queryset = customers.annotate(
+                            last_invoice_grand_total=Subquery(
+                                Invoice.objects.filter(customer=OuterRef('id')).order_by('-id').values('grand_total')[:1]
+                            ),
+                            last_invoice_status=Subquery(
+                                Invoice.objects.filter(customer=OuterRef('id')).order_by('-id').values('status')[:1]
+                            )
+                        )
+                    customer_serializer = CustomerallSerializer(queryset, many=True)
+                    response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message": "Customers and found successfully!",
+                        "customers": customer_serializer.data,
+                        
+                
+                    }
+                    return Response(response)
+                elif customers and search_type == "local":
+                    queryset = customers.filter(business_profile=businessprofile).annotate(
+                            last_invoice_grand_total=Subquery(
+                                Invoice.objects.filter(customer=OuterRef('id')).order_by('-id').values('grand_total')[:1]
+                            ),
+                            last_invoice_status=Subquery(
+                                Invoice.objects.filter(customer=OuterRef('id')).order_by('-id').values('status')[:1]
+                            )
+                        )
+                    customer_serializer = CustomerallSerializer(queryset, many=True)
+                    response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message": "Customers and found successfully!",
+                        "customers": customer_serializer.data,
+                    }
+                    return Response(response)
+                else:
+                    msg = f"No results for {search_query}.\n Try checking your spelling or use more general terms"
+                    print(msg)
+                    response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message": msg,
+                        "customers":[],
+                    }
+                    return Response(response)
+            else:
+                msg = f"No results for nonetype{search_query}.\n Try checking your spelling or use more general terms"
+                print(msg)
+                response = {
+                    "status_code": 200,
+                    "status": "success",
+                    "message": msg,
+                }
+                return Response(response)
+
+
+
+        except Exception as e:
+            print(f"error {e}")
+            response = {
+                "status_code": 500,
+                "status": "error",
+                "message": "Internal Server Error."
+            }
+            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UserProfileUpdateview(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self ,request,*args, **kwargs):
+        instance = self.get_object()
+        phone_number = request.user.phone_number
+        businessprofile= BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+        businessprofileserializer = BusinessProfileSerializer(businessprofile)
+        serializer = UserProfileSerializer(instance)
+        response = {
+                "status_code": 200,
+                "status": "success",
+                "message": "UserProfile found",
+                "data" :serializer.data,
+                "business_profile_data" : businessprofileserializer.data ,  
+                "phone_number":phone_number
+        }
+        return Response(response)
+    def put(self, request, *args, **kwargs):
+        try:
+            businessprofile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
+            instance = self.get_object()
+            
+            # Check if 'profile_image' is present in request.FILES
+            if 'profile_image' in request.FILES:
+                data_files = request.FILES['profile_image']
+                # Include request.data along with file data when initializing the serializer
+                serializer = UserProfileUpdateSerializer(instance, data=request.data,context={"request":request},partial=True)
+                if serializer.is_valid():
+                    serializer.save()
+                    # phone_number = request.user.phone_number
+                    # businessprofileserializer = BusinessProfileSerializer(businessprofile)
+                    
+                    response_data = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message": "UserProfile Updated",
+                        "user_profile_data": serializer.data,
+                        # "business_profile_data": businessprofileserializer.data,
+                        # "phone_number": phone_number
+                    }
+                    return Response(response_data, status=status.HTTP_200_OK)
+                else:
+                    response_data = {
+                        "status_code": 200,
+                        "status": "error",
+                        "message": "UserProfile not Updated",
+                        "errors": serializer.errors
+                    }
+                    return Response(response_data)
+            else:
+                response_data = {
+                    "status_code": 200,
+                    "status": "error",
+                    "message": "profile image not found"
+                }
+                return Response(response_data)
+        except Exception as e:
+            print(e)
+            response = {
+                "status_code": 200,
+                "status": "success",
+                "message": f"UserProfile not found {e}"
+        }
+        return Response(response)
+
+    
+    def get_object(self):
+
+        # Retrieve the BusinessProfile object based on the user making the request
+        queryset = UserProfile.objects.filter(id=self.request.user.id)
+        if not queryset.exists():
+            raise Http404
+        return queryset.first()
+class CustomerfavouriteFrequentTopAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self,request):
+        try:
+            businessprofile= BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            favourite_customer = businessprofile.customer_set.filter(favourite= True).order_by('-id')
+            frequent_customer = businessprofile.customer_set.all().annotate(invoice_count=Count('invoice')).order_by('invoice_count')
+            top_customer = businessprofile.customer_set.all().annotate(total_sum=Sum('invoice__total')).order_by('total_sum')         
+
+            favourite_customer_serializer = CustomerSerializer(favourite_customer,many = True)
+            frequent_customer_serializer = CustomerSerializer(frequent_customer,many = True)
+            top_customer_serializer = CustomerSerializer(top_customer,many = True)
+
+            response   =    {
+                            "status_code": 200,
+                            "status": "success",
+                            "message": "Customer found",
+                            "favourite_customer":favourite_customer_serializer.data,
+                            "frequent_customer": frequent_customer_serializer.data,
+                            "top_customer": top_customer_serializer.data
+                           }
+            return Response(response)
+        except Exception as e:
+            print(f"erros {e}")
+            return Response({"status_code": 500,
+                    "status": "faild",
+                    "message": "Customer not found"})
+
+        
+
+class CustomerfavouriteAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+    def patch(self ,request):
+        try:
+            id =  request.data.get("id")
+            favourite = request.data.get("favourite")
+            if not id and not favourite :
+                return Response({ "status_code": 200,
+                        "status": "success",
+                    "message": "Provide either 'favourite' or 'id' in the request data."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            queryset = Customer.objects.filter(id = id).first()
+            if favourite :
+                queryset.favourite = favourite
+                queryset.save()
+                serializer = CustomerListSerializer(queryset)
+                response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message": "UserProfile found",
+                        "data" :serializer.data
+                }
+            return Response(response)
+        except Exception as e:
+            print(e)
+            return Response({"status_code": 500,
+                    "status": "faild",
+                    "message": "Customer not found"})
+def get_grand_total_and_status(customer):
+    queryset = customer.annotate(
+                        last_invoice_grand_total=Subquery(
+                            Invoice.objects.filter(customer=OuterRef('id')).order_by('-id').values('grand_total')[:1]
+                        ),
+                        last_invoice_status=Subquery(
+                            Invoice.objects.filter(customer=OuterRef('id')).order_by('-id').values('status')[:1]
+                        )
+                    )
+    return queryset
+class CustomerFilterAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+    def post(self , request):
+        
+        try:
+            businessprofile= BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            favourite = request.data.get("favourite")
+            gst_number = request.data.get("gst_number")
+            area = request.data.get("area")
+            status = request.data.get("status")
+            if not favourite and not gst_number and not status and not area:
+                return Response({"status_code": 200,
+                            "status": "error",
+                    "message": "Provide either 'favourite' or 'gst_number' or status or area in the request data."})
+            queryset = Customer.objects.filter(business_profile=businessprofile).order_by("-id")
+            paginator = self.pagination_class()
+            if favourite == 1 :
+                customer = queryset.filter(favourite = True).order_by("-id")
+                customers = get_grand_total_and_status(customer)
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if favourite == 2:
+                customer = queryset.filter(favourite = False).order_by('-id')
+                customers = get_grand_total_and_status(customer)
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if gst_number==1:
+                customer = queryset.filter(gst_number__isnull=False)
+                customers = get_grand_total_and_status(customer)
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if gst_number==2:
+                customer = queryset.filter(gst_number__isnull=True)
+                customers = get_grand_total_and_status(customer)
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if status:
+
+                invoice = businessprofile.invoice_set.all().order_by('-id')
+
+                customer = []
+                customer_ids = [c.id for c in customer] 
+                customer_queryset = Customer.objects.filter(id__in=customer_ids)
+                for i in invoice:
+
+                    if status == 'red' and i.customer not in customer:
+                        if i.payment_type =="pay_letter":
+                            customer.append(invoice.filter(id =i.id).last().customer)
+                    elif status == 'yellow' and i.customer not in customer:
+                        if i.payment_type == "remain_payment":
+                            customer.append(invoice.filter(id =i.id).last().customer)
+                    elif status == 'green' and i.customer not in customer:
+                        if i.payment_type == "paid" :
+                            customer.append(invoice.filter(id =i.id).last().customer)
+                customers_data = get_grand_total_and_status(customer_queryset)
+                result_page = paginator.paginate_queryset(customers_data, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+		            response   =    {
+                            "status_code": 200,
+                            "status": "success",
+                            "message": "Customer found",
+                            "data" :customer_serializer.data,
+                            "next": paginator.get_next_link(), 
+                    }
+            return Response(response)
+        except Exception as e:
+            print(e)
+            return Response({"status_code": 500,
+                    "status": "faild",
+                    "message": "Customer not found"})
+
+        
+        
+class CustomerSortAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+    def post(self ,request):
+        try:
+            
+            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            debt = request.data.get("debt")
+            sales = request.data.get("sales")
+            user_name = request.data.get("user_name")
+            most_frequent = request.data.get("most_frequent")
+            most_profitable  = request.data.get("most_profitable") 
+            sorted_customers = None
+            queryset = Customer.objects.filter(business_profile=businessprofile)
+            paginator = self.pagination_class()
+            customers_with_remaining_total = queryset.annotate(remaining_total=Sum('invoice__remaining_total'))
+            customers_with_total = queryset.annotate(grand_total=Sum('invoice__grand_total'))
+            customers_with_invoice_count = queryset.annotate(invoice_count=Count('invoice'))
+            customers_with_product_profit = queryset.annotate(
+                total_profit=Sum(ExpressionWrapper(F('invoice__invoiceitem__product__sales_price') - F('invoice__invoiceitem__product__purchase_price'), output_field=DecimalField()))
+                )
+            if debt == "high to low":
+                sorted_customers = customers_with_remaining_total.order_by('remaining_total')
+            if debt == "low to high":
+                sorted_customers = customers_with_remaining_total.order_by('-remaining_total')
+            if sales == "high to low":
+                sorted_customers = customers_with_total.order_by('grand_total')
+            if sales == "low to high":
+                sorted_customers = customers_with_total.order_by('-grand_total')
+            if most_frequent:
+                sorted_customers = customers_with_invoice_count.order_by("invoice_count")
+            if most_profitable:
+                sorted_customers = customers_with_product_profit.order_by("total_profit")
+            if user_name== "ascending":
+                sorted_customers = Customer.objects.filter(business_profile=businessprofile).order_by("customer_name")
+            if user_name =="descending":
+                sorted_customers = Customer.objects.filter(business_profile=businessprofile).order_by("-customer_name")
+            customers_data = get_grand_total_and_status(sorted_customers)
+            result_page = paginator.paginate_queryset(customers_data, request, view=self)
+            customer_serializer = CustomerallSerializer(result_page,many = True)
+
+            response   =    {
+                            "status_code": 200,
+                            "status": "success",
+                            "message": "customer found",
+                            "data" :customer_serializer.data,
+                            "next": paginator.get_next_link()
+                    }
+            return Response(response)
+        except Exception as e:
+            print(f"erros {e}")
+            return Response({"status_code": 500,
+                    "status": "faild",
+                    "message": "Customer not found"})
+
+
+class BusinessProfileDeactivate(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+    @csrf_exempt
+    def post(self, request, *args, **kwargs):
+        try:
+            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            print(businessprofile)
+            if businessprofile:
+                data = request.data['is_active']
+                businessprofile.is_active=data
+                businessprofile.save()
+                return Response({"status_code": 200,
+                                "status": "success",
+                                "message": "businessprofile deactivate successfully"})
+            else:
+                return Response({"status_code": 400,
+                                "status": "error",
+                                "message": "businessprofile not found"})
+        except Exception as e:
+            return Response({
+                        "status_code": 500,
+                        "status": "Error",
+                        "message": "data not found",
+                    })
+@api_view(['GET'])  
+def get_address_from_zip_code(request, zipcode):
+    try:
+        if request.method == "GET":
+            if len(zipcode) != 6:
+                return Response({
+                    "status_code": 200,
+                    "status": "Error",
+                    "message": "Please input a valid pincode",
+                })
+
+            addresses = indiapins.matching(zipcode)
+
+            if addresses:
+                address = addresses[0]
+                name = address["Name"]
+                District = address['District']
+                State = address['State']
+
+                context = {
+                    "status_code": 200,
+                    "status": "success",
+                    "address2": name,
+                    "District": District,
+                    "State": State
+                }
+                return JsonResponse(context)
+            else:
+                return Response({
+                    "status_code": 200,
+                    "status": "Error",
+                    "message": "Pincode not found",
+                })
+        else:
+            return Response({"status_code": 405,
+                            "status": "Error",
+                            "message" :"Invalid request method"})
+
+    except Exception as e:
+        return Response({
+                    "status_code": 500,
+                    "status": "Error",
+                    "message": "data not found",
+                })
