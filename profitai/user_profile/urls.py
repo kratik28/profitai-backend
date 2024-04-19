@@ -12,6 +12,7 @@ urlpatterns = [
     path('backend/business-profile/', user_profile_view.BusinessProfileListCreateAPIView.as_view(), name='business-profile-list-create'),
     path('backend/business-all/', user_profile_view.BusinessProfileRetrieveUpdateDestroyAPIView.as_view(), name='business-profile-retrieve-update-destroy'),
     path('backend/business/deactivate/', user_profile_view.BusinessProfileDeactivate.as_view(),name="business-deactivate"),
+    path('backend/vendor/', user_profile_view.VendorListAPIView.as_view(), name='vendor-list'),
     path('backend/costomer/', user_profile_view.CustomerListCreateAPIView.as_view(), name='costomer-list-create'),
     path('backend/userupdate/',user_profile_view.UserProfileUpdateview.as_view()),
     path("backend/costomer/search",user_profile_view.CustomerSearchAPI.as_view()),

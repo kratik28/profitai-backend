@@ -460,14 +460,56 @@ class BusinessProfileRetrieveUpdateDestroyAPIView(APIView):
             }
             return Response(response, status=status.HTTP_404_NOT_FOUND)
 
+
+class VendorListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+
+    def get(self, request):
+        name = self.request.GET.get('name', None)
+        search = self.request.GET.get('search', None)
+        businessprofile=BusinessProfile.objects.filter(user_profile = request.user,is_active= True).first()
+        vendor_queryset = Customer.objects.filter(invoice__business_profile=businessprofile, is_purchase=True).distinct().order_by('-id')
+        if search:
+                  vendor_queryset = vendor_queryset.filter( 
+                      Q(customer_name__icontains=search)|
+                      Q(phone_number__icontains=search) |
+                      Q(gst_number__icontains=search)
+                  ).order_by("customer_name")
+
+        if name == "ascending":
+                vendor_queryset = vendor_queryset.order_by("customer_name")
+        if name == "descending":
+                vendor_queryset = vendor_queryset.order_by("-customer_name")
+        
+        queryset = get_grand_total_and_status(vendor_queryset,businessprofile)
+        paginator = self.pagination_class()
+        result_page = paginator.paginate_queryset(queryset, request, view=self)
+        total_length_before_pagination = queryset.count()
+        total_pages = paginator.page.paginator.num_pages
+        serializer = CustomerallSerializer(result_page, many=True)
+        response = {
+            "status_code": 200,
+            "status": "success",
+            "message": "all purchase vendor found",
+            "data": serializer.data,
+            "total_length_before_pagination":total_length_before_pagination,
+            "total_pages":total_pages,
+            "next": paginator.get_next_link(),  # Include the next page link
+        }
+        return Response(response)
+    
+
 class CustomerListCreateAPIView(APIView):
+
+
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
 
     def get(self, request):
         businessprofile=BusinessProfile.objects.filter(user_profile = request.user,is_active= True).first()
         
-        cus_queryset = Customer.objects.filter(invoice__business_profile=businessprofile).distinct().order_by('-id')
+        cus_queryset = Customer.objects.filter(invoice__business_profile=businessprofile,is_purchase=False).distinct().order_by('-id')
         # queryset = cus_queryset.annotate(
         #     all_remaining=Sum('invoice__remaining_total'),
         #     all_grand_total=Sum('invoice__grand_total'),

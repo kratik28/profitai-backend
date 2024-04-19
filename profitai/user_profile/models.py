@@ -74,6 +74,7 @@ class Customer(models.Model):
     phone_number = models.CharField(max_length=20, null=False, default=None, blank=False)
     gst_number = models.CharField(max_length=50, null=True, default=None, blank=True)
     favourite = models.BooleanField(default=False)
+    is_purchase = models.BooleanField(default=False)
     email = models.EmailField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
