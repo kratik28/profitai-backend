@@ -510,20 +510,54 @@ class CustomerListCreateAPIView(APIView):
         businessprofile=BusinessProfile.objects.filter(user_profile = request.user,is_active= True).first()
         
         cus_queryset = Customer.objects.filter(invoice__business_profile=businessprofile,is_purchase=False).distinct().order_by('-id')
-        # queryset = cus_queryset.annotate(
-        #     all_remaining=Sum('invoice__remaining_total'),
-        #     all_grand_total=Sum('invoice__grand_total'),
-        #     last_invoice_grand_total=Subquery(
-        #         Invoice.objects.filter(business_profile=businessprofile).filter(customer=OuterRef('id')).order_by('-id').values('grand_total')[:1]
-        #     ),
-        #     last_invoice_status=Subquery(
-        #         Invoice.objects.filter(business_profile=businessprofile).filter(customer=OuterRef('id')).order_by('-id').values('status')[:1]
-        #     )
-        # )
-        queryset = get_grand_total_and_status(cus_queryset,businessprofile)
+        
+        name = self.request.GET.get('name', None)
+        sales = self.request.GET.get('sales', None)
+        most_frequent = self.request.GET.get('most_frequent', None)
+        most_profitable = self.request.GET.get('most_profitable', None)
+        search = self.request.GET.get('search', None)
+        debt = self.request.GET.get('debt', None)
+        sorted_customers = None
+        
+        cus_queryset = cus_queryset.annotate(
+            all_remaining=Sum('invoice__remaining_total'),
+            all_grand_total=Sum('invoice__grand_total'),
+            last_invoice_grand_total=Subquery(
+                Invoice.objects.filter(business_profile=businessprofile).filter(customer=OuterRef('id')).order_by('-id').values('grand_total')[:1]
+            ),
+            last_invoice_status=Subquery(
+                Invoice.objects.filter(business_profile=businessprofile).filter(customer=OuterRef('id')).order_by('-id').values('status')[:1]
+            )
+        )
+        cus_queryset = get_grand_total_and_status(cus_queryset,businessprofile)
+        
+        if name == "ascending":
+                cus_queryset = cus_queryset.order_by("customer_name")
+        if name == "descending":
+                cus_queryset = cus_queryset.order_by("-customer_name")
+        if debt == "ascending":
+                cus_queryset = cus_queryset.order_by("-remaining_total")
+        if debt == "descending":
+                cus_queryset = cus_queryset.order_by("remaining_total")
+        if sales == "ascending":
+                cus_queryset = cus_queryset.order_by("-grand_total")
+        if sales == "descending":
+                cus_queryset = cus_queryset.order_by("grand_total")
+        if most_frequent == "1":
+                cus_queryset = cus_queryset.order_by("last_invoice_grand_total")
+        if most_profitable == "1":
+                cus_queryset = cus_queryset.order_by("total_profit")
+        if search:
+                cus_queryset = cus_queryset.filter( 
+                      Q(customer_name__icontains=search)|
+                      Q(phone_number__icontains=search) |
+                      Q(gst_number__icontains=search)
+                  )
+    
+       
         paginator = self.pagination_class()
-        result_page = paginator.paginate_queryset(queryset, request, view=self)
-        total_length_before_pagination = queryset.count()
+        result_page = paginator.paginate_queryset(cus_queryset, request, view=self)
+        total_length_before_pagination = cus_queryset.count()
         total_pages = paginator.page.paginator.num_pages
         serializer = CustomerallSerializer(result_page, many=True)
         response = {
@@ -536,6 +570,8 @@ class CustomerListCreateAPIView(APIView):
             "next": paginator.get_next_link(),  # Include the next page link
         }
         return Response(response)
+    
+    
     def post(self, request):
         try:
             phone_number = request.data["phone_number"]
@@ -769,6 +805,78 @@ class CustomerfavouriteAPI(APIView):
 class CustomerFilterAPIView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
+    
+    def get(self,request):
+        try:
+            favourite = request.GET.get('favourite')
+            gst_number = request.GET.get('gst_number')
+            area = request.GET.get('area')
+            status = request.GET.get('status')
+            businessprofile= BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            
+            if not favourite and not gst_number and not status and not area:
+                return Response({"status_code": 200,
+                            "status": "error",
+                    "message": "Provide either 'favourite' or 'gst_number' or status or area in the request data."})
+            
+            queryset = Customer.objects.filter(invoice__business_profile=businessprofile).distinct().order_by('-id')
+            
+            paginator = self.pagination_class()
+            if favourite == 1 :
+                queryset = queryset.filter(favourite = True).order_by("-id")
+                customers = get_grand_total_and_status(queryset,businessprofile)
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if favourite == 2:
+                queryset = queryset.filter(favourite = False).order_by('-id')
+                customers = get_grand_total_and_status(queryset,businessprofile)
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if gst_number==1:
+                queryset = queryset.filter(gst_number__isnull=False)
+                customers = get_grand_total_and_status(queryset,businessprofile)
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if gst_number==2:
+                queryset = queryset.filter(gst_number__isnull=True)
+                customers = get_grand_total_and_status(queryset,businessprofile)
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if status=="red":
+                queryset = get_grand_total_and_status(queryset,businessprofile)
+                customers=queryset.filter(last_invoice_status=1).order_by("-id")
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if status=="yellow":
+                queryset = get_grand_total_and_status(queryset,businessprofile)
+                customers=queryset.filter(last_invoice_status=2).order_by("-id")
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            if status=="green":
+                queryset = get_grand_total_and_status(queryset,businessprofile)
+                customers=queryset.filter(last_invoice_status=3).order_by("-id")
+                result_page = paginator.paginate_queryset(customers, request, view=self)
+                customer_serializer = CustomerallSerializer(result_page,many = True)
+            total_length_before_pagination = customers.count()
+            total_pages = paginator.page.paginator.num_pages
+            response   =    {
+                            "status_code": 200,
+                            "status": "success",
+                            "message": "Customer found",
+                            "data" :customer_serializer.data,
+                            "total_length_before_pagination":total_length_before_pagination,
+                            "total_pages":total_pages,
+                            "next": paginator.get_next_link(), 
+                    }
+            return Response(response)
+        
+        except Exception as e:
+            print(f"erros {e}")
+            return Response({"status_code": 500,
+                    "status": "faild",
+                    "message": "Customer not found"})
+
+
     def post(self , request):
         
         try:
@@ -777,14 +885,14 @@ class CustomerFilterAPIView(APIView):
             gst_number = request.data.get("gst_number")
             area = request.data.get("area")
             status = request.data.get("status")
-            if not favourite and not gst_number and not status and not area:
-                return Response({"status_code": 200,
-                            "status": "error",
-                    "message": "Provide either 'favourite' or 'gst_number' or status or area in the request data."})
+            # if not favourite and not gst_number and not status and not area:
+            #     return Response({"status_code": 200,
+            #                 "status": "error",
+            #         "message": "Provide either 'favourite' or 'gst_number' or status or area in the request data."})
             
             queryset = Customer.objects.filter(invoice__business_profile=businessprofile).distinct().order_by('-id')
+            print(queryset, "?>>>>>")
             paginator = self.pagination_class()
-            
             if favourite == 1 :
                 customer = queryset.filter(favourite = True).order_by("-id")
                 customers = get_grand_total_and_status(customer,businessprofile)
@@ -847,39 +955,39 @@ class CustomerSortAPIView(APIView):
         try:
             
             businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
-            debt = request.data.get("debt")
-            sales = request.data.get("sales")
-            user_name = request.data.get("user_name")
-            most_frequent = request.data.get("most_frequent")
-            most_profitable  = request.data.get("most_profitable") 
-            sorted_customers = None
+            # debt = request.data.get("debt")
+            # sales = request.data.get("sales")
+            # user_name = request.data.get("user_name")
+            # most_frequent = request.data.get("most_frequent")
+            # most_profitable  = request.data.get("most_profitable") 
+            # sorted_customers = None
 
-            # queryset = Customer.objects.filter(business_profile=businessprofile)
-            queryset = Customer.objects.filter(invoice__business_profile=businessprofile).distinct().order_by('-id')
+            queryset = Customer.objects.filter(business_profile=businessprofile)
+            queryset = Customer.objects.filter(invoice__business_profile=businessprofile,is_purchase=False).distinct().order_by('-id')
             paginator = self.pagination_class()
-        
-            customers_with_remaining_total = queryset.annotate(remaining_total=Sum('invoice__remaining_total'))
-            customers_with_total = queryset.annotate(grand_total=Sum('invoice__grand_total'))
-            customers_with_invoice_count = queryset.annotate(invoice_count=Count('invoice'))
-            customers_with_product_profit = queryset.annotate(
-                total_profit=Sum(ExpressionWrapper(F('invoice__invoiceitem__product__sales_price') - F('invoice__invoiceitem__product__purchase_price'), output_field=DecimalField()))
-                )
-            if debt == "high to low":
-                sorted_customers = customers_with_remaining_total.filter(remaining_total__gt=0).order_by('-remaining_total')
-            if debt == "low to high":
-                sorted_customers = customers_with_remaining_total.filter(remaining_total__gt=0).order_by('remaining_total')
-            if sales == "high to low":
-                sorted_customers = customers_with_total.filter(grand_total__gt=0).order_by('-grand_total')
-            if sales == "low to high":
-                sorted_customers = customers_with_total.filter(grand_total__gt=0).order_by('grand_total')
-            if most_frequent:
-                sorted_customers = customers_with_invoice_count.order_by("invoice_count")
-            if most_profitable:
-                sorted_customers = customers_with_product_profit.order_by("total_profit")
-            if user_name== "ascending":
-                sorted_customers = queryset.order_by("customer_name")
-            if user_name =="descending":
-                sorted_customers = queryset.order_by("-customer_name")
+            sorted_customers= queryset
+            # customers_with_remaining_total = queryset.annotate(remaining_total=Sum('invoice__remaining_total'))
+            # customers_with_total = queryset.annotate(grand_total=Sum('invoice__grand_total'))
+            # customers_with_invoice_count = queryset.annotate(invoice_count=Count('invoice'))
+            # customers_with_product_profit = queryset.annotate(
+            #     total_profit=Sum(ExpressionWrapper(F('invoice__invoiceitem__product__sales_price') - F('invoice__invoiceitem__product__purchase_price'), output_field=DecimalField()))
+            #     )
+            # if debt == "high to low":
+            #     sorted_customers = customers_with_remaining_total.filter(remaining_total__gt=0).order_by('-remaining_total')
+            # if debt == "low to high":
+            #     sorted_customers = customers_with_remaining_total.filter(remaining_total__gt=0).order_by('remaining_total')
+            # if sales == "high to low":
+            #     sorted_customers = customers_with_total.filter(grand_total__gt=0).order_by('-grand_total')
+            # if sales == "low to high":
+            #     sorted_customers = customers_with_total.filter(grand_total__gt=0).order_by('grand_total')
+            # if most_frequent:
+            #     sorted_customers = customers_with_invoice_count.order_by("invoice_count")
+            # if most_profitable:
+            #     sorted_customers = customers_with_product_profit.order_by("total_profit")
+            # if user_name== "ascending":
+            #     sorted_customers = queryset.order_by("customer_name")
+            # if user_name =="descending":
+            #     sorted_customers = queryset.order_by("-customer_name")
             customers_data = get_grand_total_and_status(sorted_customers,businessprofile)
             total_length_before_pagination = sorted_customers.count()
             result_page = paginator.paginate_queryset(customers_data, request, view=self)

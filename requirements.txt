@@ -17,7 +17,7 @@ Pillow
 pycparser
 pydotplus
 pydyf
-pygraphviz
+
 PyJWT
 pyparsing
 pyphen
@@ -33,4 +33,3 @@ zopfli
 requests
 telesignenterprise
 telesign
-
