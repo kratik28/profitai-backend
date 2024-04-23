@@ -512,12 +512,15 @@ class CustomerListCreateAPIView(APIView):
         cus_queryset = Customer.objects.filter(invoice__business_profile=businessprofile,is_purchase=False).distinct().order_by('-id')
         
         name = self.request.GET.get('name', None)
+        favourite = self.request.GET.get('favourite', None)
         sales = self.request.GET.get('sales', None)
         most_frequent = self.request.GET.get('most_frequent', None)
         most_profitable = self.request.GET.get('most_profitable', None)
         search = self.request.GET.get('search', None)
         debt = self.request.GET.get('debt', None)
         sorted_customers = None
+        
+      
         
         cus_queryset = cus_queryset.annotate(
             all_remaining=Sum('invoice__remaining_total'),
@@ -531,6 +534,8 @@ class CustomerListCreateAPIView(APIView):
         )
         cus_queryset = get_grand_total_and_status(cus_queryset,businessprofile)
         
+        if favourite:
+            cus_queryset = cus_queryset.filter(favourite= True)
         if name == "ascending":
                 cus_queryset = cus_queryset.order_by("customer_name")
         if name == "descending":
