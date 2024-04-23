@@ -95,7 +95,7 @@ class CustomerallSerializer(serializers.ModelSerializer):
     all_paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
     class Meta:
         model = Customer
-        fields = ['id', "customer_name","address" ,"zipcode" ,"phone_number","gst_number" ,"favourite", "email","last_invoice_grand_total","last_invoice_status","all_remaining","all_paid_amount","all_grand_total"]
+        fields = ['id', "customer_name","address" ,"zipcode", "is_purchase" ,"phone_number","gst_number" ,"favourite", "email","last_invoice_grand_total","last_invoice_status","all_remaining","all_paid_amount","all_grand_total"]
     
 class CustomerSortSerializer(serializers.ModelSerializer):
     last_invoice_grand_total = serializers.DecimalField(max_digits=10, decimal_places=2)

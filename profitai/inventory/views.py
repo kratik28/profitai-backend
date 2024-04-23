@@ -68,8 +68,8 @@ class ProductListCreateView(APIView):
                 return Response(response)
             else:
                 
-                response = {"status_code": 200,
-                            "status": "success",
+                response = {"status_code": 400,
+                            "status": "error",
                             "messege": "Product not created "
                             }
                 print(serializer.errors)
@@ -115,39 +115,47 @@ class ProductRetrieveUpdateDestroyAPIView(APIView):
             return Response(response)
 
     def put(self, request, id):
-        # Update an existing object
         try:
+            # Get the instance of the product
             instance = self.get_object(id)
-            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
-            request.data["business_profile"]=business_profile.id
-            remaining_quantity = request.data["total_quantity"]
-            request.data["remaining_quantity"] = remaining_quantity
-            if request.data["remaining_quantity"] <= 0 or request.data["remaining_quantity"] == None:
-                request.data["status"]=1
-            else:
-                request.data["status"]=3
+            
+            # Get the business profile of the current user
+            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
+            request.data["business_profile"] = business_profile.id
+            
+            # Update remaining quantity and status based on the request data
+            remaining_quantity = request.data.get("total_quantity")
+            request.data["remaining_quantity"] = remaining_quantity if remaining_quantity else 0
+            request.data["status"] = 1 if remaining_quantity and remaining_quantity <= 0 else 3
+            
+            # Update the product instance with the new data
             serializer = ProductCreateSerializer(instance, data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                response = {
-                        "status_code": 200,
-                        "status": "success",
-                        "message":"Product updated Successfully!",
-                        "data": serializer.data
-                    }
-                return Response(response)
+                response_data = {
+                    "status_code": status.HTTP_200_OK,
+                    "status": "success",
+                    "message": "Product updated successfully!",
+                    "data": serializer.data
+                }
+                return Response(response_data)
             else:
-                response = {"status_code": 200,
-                                "status": "success",
-                                "messege": "Product not updated"}
+                response_data = {
+                    "status_code": status.HTTP_400_BAD_REQUEST,
+                    "status": "error",
+                    "message": "Product not updated",
+                    "errors": serializer.errors
+                }
+                return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print(f"error's {e}")
-            response = {
-                "status_code": 500,
+            print(f"Error: {e}")
+            response_data = {
+                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
                 "status": "error",
                 "message": "Internal server error"
             }
-            return Response(response)
+            return Response(response_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
     def delete(self, request, id):
         try:
             instance = self.get_object(id)

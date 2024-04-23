@@ -29,6 +29,7 @@ import requests
 from profitai import settings
 
 def get_grand_total_and_status(customer,businessprofile):
+    print(customer)
     queryset = customer.annotate(
                         all_remaining=Sum('invoice__remaining_total'),
                         all_grand_total=Sum('invoice__grand_total'),
