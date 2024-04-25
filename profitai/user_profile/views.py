@@ -29,7 +29,6 @@ import requests
 from profitai import settings
 
 def get_grand_total_and_status(customer,businessprofile):
-    print(customer)
     queryset = customer.annotate(
                         all_remaining=Sum('invoice__remaining_total'),
                         all_grand_total=Sum('invoice__grand_total'),
@@ -469,6 +468,7 @@ class VendorListAPIView(APIView):
     def get(self, request):
         name = self.request.GET.get('name', None)
         search = self.request.GET.get('search', None)
+        favourite = self.request.GET.get('favourite', None)
         businessprofile=BusinessProfile.objects.filter(user_profile = request.user,is_active= True).first()
         vendor_queryset = Customer.objects.filter(invoice__business_profile=businessprofile, is_purchase=True).distinct().order_by('-id')
         if search:
@@ -482,6 +482,8 @@ class VendorListAPIView(APIView):
                 vendor_queryset = vendor_queryset.order_by("customer_name")
         if name == "descending":
                 vendor_queryset = vendor_queryset.order_by("-customer_name")
+        if favourite:
+            cus_queryset = cus_queryset.filter(favourite= True)
         
         queryset = get_grand_total_and_status(vendor_queryset,businessprofile)
         paginator = self.pagination_class()
