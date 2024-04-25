@@ -50,6 +50,14 @@ class CustomerSerializer(serializers.ModelSerializer):
         model = Customer
         fields = '__all__'
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Exclude certain fields from being required during update
+        excluded_fields = ['business_profile']  # Add field names to exclude here
+        for field_name in excluded_fields:
+            self.fields[field_name].required = False
+
 class InvoiceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
