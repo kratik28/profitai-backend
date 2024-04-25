@@ -478,12 +478,12 @@ class VendorListAPIView(APIView):
                       Q(gst_number__icontains=search)
                   ).order_by("customer_name")
 
+        if favourite:
+            vendor_queryset = vendor_queryset.filter(favourite= True)
         if name == "ascending":
                 vendor_queryset = vendor_queryset.order_by("customer_name")
         if name == "descending":
                 vendor_queryset = vendor_queryset.order_by("-customer_name")
-        if favourite:
-            cus_queryset = cus_queryset.filter(favourite= True)
         
         queryset = get_grand_total_and_status(vendor_queryset,businessprofile)
         paginator = self.pagination_class()
