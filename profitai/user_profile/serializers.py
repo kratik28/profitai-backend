@@ -92,7 +92,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
 class CustomerPdfSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ["id","customer_name","address","zipcode","phone_number","email","gst_number","favourite"]
+        fields = ["id","customer_name","address","zipcode","phone_number","email","gst_number","is_purchase","favourite"]
 
 
 class CustomerallSerializer(serializers.ModelSerializer):
