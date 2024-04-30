@@ -539,7 +539,7 @@ class CustomerListCreateAPIView(APIView):
             )
         )
         cus_queryset = get_grand_total_and_status(cus_queryset,businessprofile)
-        
+        print(cus_queryset, "cus_queryset")
         if favourite:
             cus_queryset = cus_queryset.filter(favourite= True)
         if name == "ascending":
@@ -557,7 +557,7 @@ class CustomerListCreateAPIView(APIView):
         if most_frequent == "1":
                 cus_queryset = cus_queryset.order_by("last_invoice_grand_total")
         if most_profitable == "1":
-                cus_queryset = cus_queryset.order_by("total_profit")
+                cus_queryset = cus_queryset.order_by("all_grand_total") # cus_queryset.order_by("total_profit")
         if search:
                 cus_queryset = cus_queryset.filter( 
                       Q(customer_name__icontains=search)|
