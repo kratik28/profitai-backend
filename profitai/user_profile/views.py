@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.http import Http404, JsonResponse
 from invoice.models import Invoice
+from inventory.models import Product
 from invoice.serializers import InvoiceSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
 from user_profile.models import UserProfile, UserProfileOTP, BusinessProfile, Customer
@@ -14,7 +15,7 @@ from telesign.util import random_with_n_digits
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 import random
-from datetime import datetime
+import datetime
 from user_profile.models import UserProfile
 from master_menu.models import BusinessType, Industry
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -27,6 +28,7 @@ from rest_framework.decorators import api_view
 from django.db.models import Q,F, ExpressionWrapper, DecimalField
 import requests
 from profitai import settings
+from django.db.models.functions import TruncDay
 
 def get_grand_total_and_status(customer,businessprofile):
     queryset = customer.annotate(
@@ -1303,3 +1305,56 @@ class GSTVerificationAPIView(APIView):
                     "status": "Error",
                     "message": "data not found",
                 }, status=status.HTTP_400_BAD_REQUEST)
+    
+class DashboardAPIView(APIView): 
+       permission_classes = [IsAuthenticated]
+       def get(self, request):
+            # Get the current date and time with microsecond precision
+        current_datetime = timezone.now()
+
+        # Calculate the start and end dates of the current month
+        current_month_start = current_datetime.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        current_month_end = current_month_start.replace(month=current_month_start.month + 1) - datetime.timedelta(microseconds=1)
+
+        # Get the business profile associated with the current user
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
+        
+        # Filter invoices by business profile and customer ID
+        invoice_data = Invoice.objects.filter(business_profile=business_profile)
+
+        # Get sales data for the current month
+        current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(
+            day=TruncDay('order_date_time')
+        ).values('day').annotate(total=Sum('grand_total')).order_by('day')
+
+
+        # Extract sales totals for each day in the current and previous month
+        current_month_values = [entry['total'] for entry in current_month_data]
+
+        # Generate labels for each day in the current month
+        x_labels = [entry['day'].strftime('%Y-%m-%d') for entry in current_month_data]
+        
+        # Query to calculate the sum of sales_price and purchase_price
+        sum_query = Product.objects.aggregate(
+                 total_sales_price=Sum('sales_price'),
+                 total_purchase_price=Sum('purchase_price')
+        )
+        
+        # Calculate profit margin
+        total_sales_price = float(sum_query['total_sales_price'])
+        total_purchase_price = float(sum_query['total_purchase_price'])
+
+        response = {
+            "status_code": 200,
+            "status": "success",
+            "message": "Invoice data retrieved successfully!",
+            'sales_graph': {
+                'current_month_data': current_month_values,
+                'current_month': current_month_values,
+                'x_labels': x_labels
+            },
+            'profit_margin': ((total_sales_price-total_purchase_price) / total_sales_price)*100
+        }
+
+        return Response(response)
+         

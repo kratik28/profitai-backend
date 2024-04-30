@@ -24,4 +24,5 @@ urlpatterns = [
     path("backend/total_amount/report",user_profile_view.AllInvoiceAmountReport.as_view()),
     path("api/zipcode/<str:zipcode>",user_profile_view.get_address_from_zip_code , name="zipcode-api"),
     path("backend/gst-api/",user_profile_view.GSTVerificationAPIView.as_view(),name="gst-api"),
+    path('backend/dashboard',user_profile_view.DashboardAPIView.as_view(),name='dashboard-api')
 ]

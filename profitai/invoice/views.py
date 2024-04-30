@@ -13,6 +13,10 @@ from datetime import datetime
 from django.db.models import Q, Max
 from user_profile.pagination import InfiniteScrollPagination
 from django.db import transaction
+from django.db.models import Sum
+from django.db.models.functions import TruncDay
+from django.utils import timezone
+import datetime
 
 class InvoiceCustomerListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -529,3 +533,57 @@ class InvoiceListChartView(APIView):
             "total_invoces": invoice_data,}
          
         return Response(response)
+    
+class InvoiceCustomerSalesAnalytics(APIView): 
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        # Get the current date and time with microsecond precision
+        current_datetime = timezone.now()
+
+        # Calculate the start and end dates of the current month
+        current_month_start = current_datetime.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        current_month_end = current_month_start.replace(month=current_month_start.month + 1) - datetime.timedelta(microseconds=1)
+
+        # Calculate the start and end dates of the previous month
+        previous_month_end = current_month_start - datetime.timedelta(microseconds=1)
+        previous_month_start = current_month_start - datetime.timedelta(days=previous_month_end.day)
+        
+        # Get the customerId from the request query parameters
+        customerId = request.GET.get("customerId")
+
+        # Get the business profile associated with the current user
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
+        
+        # Filter invoices by business profile and customer ID
+        invoice_data = Invoice.objects.filter(business_profile=business_profile,customer=customerId)
+
+        # Get sales data for the current month
+        current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(
+            day=TruncDay('order_date_time')
+        ).values('day').annotate(total=Sum('grand_total')).order_by('day')
+
+        # Get sales data for the previous month
+        previous_month_data = invoice_data.filter(order_date_time__range=(previous_month_start, previous_month_end)).annotate(
+            day=TruncDay('order_date_time')
+        ).values('day').annotate(total=Sum('grand_total')).order_by('day')
+
+        # Extract sales totals for each day in the current and previous month
+        current_month_values = [entry['total'] for entry in current_month_data]
+        previous_month_values = [entry['total'] for entry in previous_month_data]
+
+        # Generate labels for each day in the current month
+        x_labels = [entry['day'].strftime('%Y-%m-%d') for entry in current_month_data]
+
+        response = {
+            "status_code": 200,
+            "status": "success",
+            "message": "Invoice data retrieved successfully!",
+            'previous_month_data': previous_month_values,
+            'current_month_data': current_month_values,
+            'current_month': current_month_values,
+            'previous_month': previous_month_values,
+            'x_labels': x_labels
+        }
+
+        return Response(response)
+    
