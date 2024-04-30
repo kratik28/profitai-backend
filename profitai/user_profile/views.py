@@ -1348,12 +1348,14 @@ class DashboardAPIView(APIView):
             "status_code": 200,
             "status": "success",
             "message": "Invoice data retrieved successfully!",
-            'sales_graph': {
-                'current_month_data': current_month_values,
-                'current_month': current_month_values,
-                'x_labels': x_labels
-            },
-            'profit_margin': ((total_sales_price-total_purchase_price) / total_sales_price)*100
+            'data': {
+                'sales_graph': {
+                   'current_month_data': current_month_values,
+                   'current_month': current_month_values,
+                   'x_labels': x_labels
+                },
+               'profit_margin': ((total_sales_price-total_purchase_price) / total_sales_price)*100
+            }
         }
 
         return Response(response)

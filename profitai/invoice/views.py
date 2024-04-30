@@ -578,11 +578,13 @@ class InvoiceCustomerSalesAnalytics(APIView):
             "status_code": 200,
             "status": "success",
             "message": "Invoice data retrieved successfully!",
-            'previous_month_data': previous_month_values,
-            'current_month_data': current_month_values,
-            'current_month': current_month_values,
-            'previous_month': previous_month_values,
-            'x_labels': x_labels
+            'data': {
+                'previous_month_data': previous_month_values,
+                'current_month_data': current_month_values,
+                'current_month': current_month_values,
+                'previous_month': previous_month_values,
+                'x_labels': x_labels
+            }
         }
 
         return Response(response)
