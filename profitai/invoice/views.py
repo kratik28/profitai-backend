@@ -245,7 +245,7 @@ class InvoiceOrderAPI(APIView):
                     tax=tax,
                     status=200,
                     remaining_total=remaining_total,
-                    order_date_time=datetime.now()
+                    order_date_time=timezone.now()
                 )
                 
                 # Create invoice items and update product quantities
@@ -282,7 +282,7 @@ class InvoiceOrderAPI(APIView):
                 data = {
                     "invoice": invoice_data,
                     "content": content,
-                    "order_date": datetime.now(),
+                    "order_date": timezone.now(),
                     "business_profile": business_profile,
                     "customer": customer,
                     "flage": page_break(id),
@@ -466,7 +466,7 @@ class InvoiceListChartView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
     def get(self , request):
-        current_date = datetime.now()
+        current_date = timezone.now()
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
         today_queryset = Invoice.objects.filter(business_profile=business_profile, created_at__date=current_date.date())
         today_invoice = len(today_queryset)
