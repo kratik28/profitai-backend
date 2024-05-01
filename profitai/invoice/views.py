@@ -54,23 +54,38 @@ class InvoiceListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
     def get(self , request):
-
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
         queryset = Invoice.objects.filter(business_profile=business_profile)
         paginator = self.pagination_class()
+        
+        is_purchase_filter = request.GET.get('is_purchase', None);
+        search = request.GET.get('search', None)
+        date_from_param =request.GET.get('date_from', None)
+        date_to_param =request.GET.get('date_to', None)
+        month_param =request.GET.get('month', None)
+        
+        if is_purchase_filter is not None:
+           queryset = queryset.filter(customer__is_purchase=int(is_purchase_filter))
+        if search:
+                queryset = queryset.filter( 
+                      Q(customer__customer_name__icontains=search)|
+                      Q(invoice_counter__icontains=search)
+                  )
+        if date_from_param and date_to_param:
+           date_from = datetime.datetime.strptime(date_from_param, '%Y-%m-%d').date()
+           date_to = datetime.datetime.strptime(date_to_param, '%Y-%m-%d').date()
+           queryset = queryset.filter(order_date_time__date__range=(date_from, date_to))
+        if month_param:
+           month = int(month_param)
+           queryset = queryset.filter(order_date_time__month=month)
+        
+            
         result_page = paginator.paginate_queryset(queryset, request, view=self)
         current_domain = request.build_absolute_uri('/media').rstrip('/')
-        total_length_before_pagination = queryset.count()
+        serializer = InvoiceCreateSerializer(result_page, context={"request": request, 'current_domain': current_domain}, many=True)
+        total_length_before_pagination = queryset.count();
         total_pages = paginator.page.paginator.num_pages
-        serializer = InvoiceCreateSerializer(result_page,context={"request":request,'current_domain': current_domain},many= True)
-        if request.query_params.get("type")=="all":
-            response = {
-                    "status_code": 200,
-                    "status": "success",
-                    "message":"Invoice Found Successfully!",
-                    "data":  InvoiceCreateSerializer(queryset,context={"request":request,'current_domain': current_domain},many= True).data,}
-        else:
-            response = {
+        response = {
                         "status_code": 200,
                         "status": "success",
                         "message":"Invoice Found Successfully!",
@@ -79,7 +94,7 @@ class InvoiceListCreateView(APIView):
                         "total_pages":total_pages,
                         "next": paginator.get_next_link(),  # Include the next page link
             }       
-        return Response(response)
+        return Response(response)   
 
     
 class InvoiceRetrieveUpdateDestroyAPIView(APIView):
