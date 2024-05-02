@@ -1265,10 +1265,13 @@ class DashboardAPIView(APIView):
             # Get the current date and time with microsecond precision
         current_datetime = timezone.now()
 
-        # Calculate the start and end dates of the current month
+        # Calculate the start and end dates of the current and prevoius  month
         current_month_start = current_datetime.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         current_month_end = current_month_start.replace(month=current_month_start.month + 1) - datetime.timedelta(microseconds=1)
-
+        previous_month_end = current_month_start - datetime.timedelta(microseconds=1)
+        previous_month_start = current_month_start - datetime.timedelta(days=previous_month_end.day)
+        
+        
         # Get the business profile associated with the current user
         business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
         
@@ -1279,10 +1282,15 @@ class DashboardAPIView(APIView):
         current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(
             day=TruncDay('order_date_time')
         ).values('day').annotate(total=Sum('grand_total')).order_by('day')
+        
+        previous_month_data = invoice_data.filter(order_date_time__range=(previous_month_start, previous_month_end)).annotate(
+            day=TruncDay('order_date_time')
+        ).values('day').annotate(total=Sum('grand_total')).order_by('day')
 
 
         # Extract sales totals for each day in the current and previous month
         current_month_values = [entry['total'] for entry in current_month_data]
+        previous_month_values = [entry['total'] for entry in previous_month_data]
 
         # Generate labels for each day in the current month
         x_labels = [entry['day'].strftime('%Y-%m-%d') for entry in current_month_data]
@@ -1296,7 +1304,7 @@ class DashboardAPIView(APIView):
         # Calculate profit margin
         total_sales_price = float(sum_query['total_sales_price'])
         total_purchase_price = float(sum_query['total_purchase_price'])
-
+        absolute_profit_margin = (total_sales_price-total_purchase_price)
         response = {
             "status_code": 200,
             "status": "success",
@@ -1305,9 +1313,11 @@ class DashboardAPIView(APIView):
                 'sales_graph': {
                    'current_month_data': current_month_values,
                    'current_month': current_month_values,
+                   'previous_month_data': previous_month_values,
                    'x_labels': x_labels
                 },
-               'profit_margin': ((total_sales_price-total_purchase_price) / total_sales_price)*100
+               'profit_margin': (absolute_profit_margin / total_sales_price)*100,
+               'absolute_profit_margin': absolute_profit_margin
             }
         }
 
