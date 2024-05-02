@@ -1226,16 +1226,12 @@ class GSTVerificationAPIView(APIView):
             try:
                 pattern = r"State - (\w+).*Zone - (\w+)"
                 match = re.search(pattern, verify_data['data']['stj'])
-                if match:
-                  state = match.group(1)
-                  zone = match.group(2)
-                  print("State:", state)
-                  print("Zone:", zone)
+               
                 response = {
                    'business_name': verify_data['data']['lgnm'],
                    'customer_name': verify_data['data']['lgnm'],
                    'city': match.group(2) if match else "",
-                   'state': match.group(2) if match else "",
+                   'state': match.group(1) if match else "",
                    'gstin': verify_data['data']['gstin'],
                    'industry': '',
                    'pan': verify_data['data']['pan'],
