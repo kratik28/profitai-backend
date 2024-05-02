@@ -29,6 +29,7 @@ from django.db.models import Q,F, ExpressionWrapper, DecimalField
 import requests
 from profitai import settings
 from django.db.models.functions import TruncDay
+import re
 
 def get_grand_total_and_status(customer,businessprofile):
     queryset = customer.annotate(
@@ -1210,101 +1211,57 @@ class AllInvoiceAmountReport(APIView):
 class GSTVerificationAPIView(APIView):
     def post(self, request):
         api_key = settings.API_KEY
-        api_secret = settings.API_SECRET
-        # auth_url = "https://test-api.sandbox.co.in/authenticate"
-        auth_url= "https://api.sandbox.co.in/authenticate"
-        auth_headers = {
-            "x-api-key": api_key,
-            "x-api-secret": api_secret,
-            "x-api-version": "1.0"
+        api_host= settings.API_HOST
+        gst_number = request.data.get('gst_number')
+        url= "https://gst-return-status.p.rapidapi.com/free/gstin/"+ gst_number
+        headers = {
+            'Content-Type': 'application/json',
+            'X-RapidAPI-Key': api_key,
+            'X-RapidAPI-Host': api_host
         }
-        auth_response = requests.post(auth_url, headers=auth_headers)
-        auth_data = auth_response.json()
-       
-        if auth_response.status_code == 200:
-            access_token = auth_data.get("access_token")
-            gst_number = request.data.get('gst_number')
-            # verify_url = f"https://test-api.sandbox.co.in/gsp/public/gstin/{gst_number}"
-            verify_url = f"https://api.sandbox.co.in/gsp/public/gstin/{gst_number}"
-            headers = {
-                "Authorization": access_token,
-                "x-api-key": api_key,
-                "x-api-version": "1.0"
-            }
-
-            verify_response = requests.get(verify_url, headers=headers)
-            verify_data = verify_response.json()
-
-            if verify_response.status_code == 200:
-                try:
-                    business_name = verify_data['data']['tradeNam']
-                    gstin = verify_data['data']['gstin']
-                    state = verify_data['data']['pradr']['addr']['stcd']
-                    industry_type = verify_data['data']['nba'][0]
-                    name = verify_data['data']['lgnm']
-                    # Extracting primary address
-                    pradr_add = verify_data['data']['pradr']['addr']
-                    primary_add_parts = [pradr_add.get('bnm', ''), pradr_add.get('bno', ''), pradr_add.get('st', ''), pradr_add.get('loc', '')]
-                    primary_address = ' '.join(part for part in primary_add_parts if part)
-                    primary_zip_code = pradr_add['pncd']
-                    primary_landmark = pradr_add.get('landMark', '')
-                    primary_business_type = verify_data['data']['pradr'].get('ntr', '')
-                    city=pradr_add['dst']
-                    adadr_list = verify_data['data']['adadr']
-                    if adadr_list:
-                        current_add = adadr_list[0]['addr']
-                        current_add_parts = [current_add.get('bnm', ''), current_add.get('bno', ''), current_add.get('st', ''), current_add.get('loc', '')]
-                        current_address = ' '.join(part for part in current_add_parts if part)
-                        current_zip_code = current_add['pncd']
-                        current_landmark = current_add.get('landMark', '')
-                        current_business_type =adadr_list[0]['ntr']
-                    else:
-                        current_address = ""
-                        current_zip_code = ""
-                        current_landmark = ""
-                        current_business_type = ""
-                except KeyError as e:
-                    print(f'error,{e}')
-                    business_name = ''
-                    name='',
-                    city='',
-                    gstin = ''
-                    state = ''
-                    industry_type = ''
-                    primary_address = ''
-                    primary_zip_code = ''
-                    primary_landmark = ''
-                    primary_business_type = ''
-
-                response_data = {
-                    "business_name": business_name,
-                    "name":name,
-                    "gstin": gstin,
-                    "city":city,
-                    "industry_type": industry_type,
-                    "state": state,
-                    "email_id": "",
-                    "mob_number":"",
-                    "primary_add_data": {
-                    "primary_address_line_1": primary_address,
-                    "primary_address_line_2": primary_landmark,
-                    "primary_business_type": primary_business_type,
-                    "primary_zip_code": primary_zip_code
-                    }
-                    ,"current_add_data":{
-                    "current_address_line_1": current_address,
-                    "current_address_line_2": current_landmark,
-                    "current_business_type": current_business_type,
-                    "current_zip_code": current_zip_code,
-                    }
+        verify_response = requests.get(url, headers=headers)
+        verify_data = verify_response.json()
+        print(verify_data['data'])
+        if verify_response.status_code == 200:
+            try:
+                pattern = r"State - (\w+).*Zone - (\w+)"
+                match = re.search(pattern, verify_data['data']['stj'])
+                if match:
+                  state = match.group(1)
+                  zone = match.group(2)
+                  print("State:", state)
+                  print("Zone:", zone)
+                response = {
+                   'business_name': verify_data['data']['lgnm'],
+                   'customer_name': verify_data['data']['lgnm'],
+                   'city': match.group(2) if match else "",
+                   'state': match.group(2) if match else "",
+                   'gstin': verify_data['data']['gstin'],
+                   'industry': '',
+                   'pan': verify_data['data']['pan'],
+                   'nba': verify_data['data']['nba'],
+                   'email': '',
+                   'address': verify_data['data']['adr'],
+                   'address1': verify_data['data']['adr'],
+                   'address2': verify_data['data']['stj'],
+                   'zipcode': verify_data['data']['pincode']
                 }
-                return Response(response_data, status=status.HTTP_200_OK)
-            else:
-                return Response({
+                return Response(response, status=status.HTTP_200_OK)
+            except Exception as e:
+                print(f"error {e}")
+                response = {
                     "status_code": 500,
-                    "status": "Error",
-                    "message": "data not found",
-                }, status=status.HTTP_400_BAD_REQUEST)
+                    "status": "error",
+                    "message": "GST cannot be fetch."
+                }
+            return Response(response, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({
+                "status_code": 500,
+                "status": "Error",
+                "message": "data not found",
+            }, status=status.HTTP_400_BAD_REQUEST)
+       
     
 class DashboardAPIView(APIView): 
        permission_classes = [IsAuthenticated]
