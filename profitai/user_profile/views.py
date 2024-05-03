@@ -1288,12 +1288,39 @@ class DashboardAPIView(APIView):
         ).values('day').annotate(total=Sum('grand_total')).order_by('day')
 
 
-        # Extract sales totals for each day in the current and previous month
+        # Extracting total values for the current month
         current_month_values = [entry['total'] for entry in current_month_data]
-        previous_month_values = [entry['total'] for entry in previous_month_data]
 
-        # Generate labels for each day in the current month
-        x_labels = [entry['day'].strftime('%Y-%m-%d') for entry in current_month_data]
+        # Extracting total values for the previous month into a dictionary for efficient lookup
+        previous_month_totals = {entry['day'].strftime('%Y-%m-%d'): entry['total'] for entry in previous_month_data}
+
+        # Initialize previous month values list
+        previous_month_values = []
+
+       # Generating labels for each day in the current month
+        x_labels = []
+
+        for entry in current_month_data:
+          day_str = entry['day'].strftime('%Y-%m-%d')
+          x_labels.append(day_str)  # Add label for current month
+          previous_month_total = previous_month_totals.get(day_str, 0)  # Get total for corresponding day in previous month
+          previous_month_values.append(previous_month_total)
+
+           # If the day in the current month doesn't have a corresponding entry in the previous month, add it with a value of 0
+          if day_str not in previous_month_totals:
+            previous_month_totals[day_str] = 0
+
+        # Now, synchronize previous month values to match the length of current month values
+        for day_str, previous_month_total in previous_month_totals.items():
+           if day_str not in x_labels:
+              x_labels.append(day_str)  # Add label for previous month
+              current_month_values.append(0)  # Add 0 to current month values
+              previous_month_values.append(previous_month_total)  # Add total for previous month
+
+        # Sort x_labels to ensure chronological order
+        x_labels.sort()
+        
+        total_sales_by_brand = Product.objects.values('brand').annotate(value=Sum('sales_price'))
         
         # Query to calculate the sum of sales_price and purchase_price
         sum_query = Product.objects.aggregate(
@@ -1310,6 +1337,7 @@ class DashboardAPIView(APIView):
             "status": "success",
             "message": "Invoice data retrieved successfully!",
             'data': {
+                'total_sales_by_brand': total_sales_by_brand,
                 'sales_graph': {
                    'current_month_data': current_month_values,
                    'current_month': current_month_values,
