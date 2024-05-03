@@ -63,7 +63,11 @@ class InvoiceListCreateView(APIView):
         date_from_param =request.GET.get('date_from', None)
         date_to_param =request.GET.get('date_to', None)
         month_param =request.GET.get('month', None)
+        product_id =request.GET.get('product_id', None)
         
+        if product_id:
+            invoiceIds = list(InvoiceItem.objects.filter(product_id=product_id).values_list('invoice_id', flat=True))
+            queryset = queryset.filter(id__in=invoiceIds)
         if is_purchase_filter is not None:
            queryset = queryset.filter(customer__is_purchase=int(is_purchase_filter))
         if search:
@@ -127,7 +131,7 @@ class InvoiceRetrieveUpdateDestroyAPIView(APIView):
             print(e)
             return Response( {"status_code": 500,
                             "status": "faild",
-                            "message":"Invoice Not Found",})
+                            "message":"Invoice Not Found"})
         
     def put(self, request, id):
         try:
@@ -565,12 +569,21 @@ class InvoiceCustomerSalesAnalytics(APIView):
         
         # Get the customerId from the request query parameters
         customerId = request.GET.get("customerId")
+        is_purchase_filter = request.GET.get('is_purchase', 0);
+        product_id=request.GET.get('product_id', 0);
 
         # Get the business profile associated with the current user
         business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
         
         # Filter invoices by business profile and customer ID
-        invoice_data = Invoice.objects.filter(business_profile=business_profile,customer=customerId)
+        invoice_data = Invoice.objects.filter(business_profile=business_profile,customer__is_purchase=int(is_purchase_filter))
+        
+        if product_id:
+            invoiceIds = list(InvoiceItem.objects.filter(product_id=product_id).values_list('invoice_id', flat=True))
+            invoice_data = invoice_data.filter(id__in=invoiceIds)
+        if customerId:
+            invoice_data= invoice_data.filter(customer=customerId);
+        
 
         # Get sales data for the current month
         current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(
@@ -584,7 +597,7 @@ class InvoiceCustomerSalesAnalytics(APIView):
 
        # Extracting total values for the current month
         current_month_values = [entry['total'] for entry in current_month_data]
-
+        
         # Extracting total values for the previous month into a dictionary for efficient lookup
         previous_month_totals = {entry['day'].strftime('%Y-%m-%d'): entry['total'] for entry in previous_month_data}
 
