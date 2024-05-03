@@ -1352,4 +1352,24 @@ class DashboardAPIView(APIView):
         }
 
         return Response(response)
-         
+
+class UserProfitDeleteAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    def delete(self, request):
+        # Delete active BusinessProfile associated with the current user
+        deleted_count = BusinessProfile.objects.filter(user_profile=self.request.user, is_active=True).update(is_active=False)
+        
+        if deleted_count > 0:  # If at least one BusinessProfile was successfully deactivated
+            response_data = {
+                "status_code": status.HTTP_200_OK,
+                "status": "success",
+                "message": "Account deleted successfully!"
+            }
+        else:  # If no BusinessProfile was found or deleted
+            response_data = {
+                "status_code": status.HTTP_404_NOT_FOUND,
+                "status": "error",
+                "message": "No active account found to delete"
+            }
+        
+        return Response(response_data, status=response_data["status_code"])
