@@ -1321,7 +1321,10 @@ class DashboardAPIView(APIView):
         # Sort x_labels to ensure chronological order
         x_labels.sort()
         
-        total_sales_by_brand = Product.objects.filter(business_profile=business_profile).values('brand').annotate(value=Sum('sales_price'))
+        products_data = Product.objects.filter(business_profile=business_profile)
+        total_sales_by_brand= products_data.values('brand').annotate(value=Sum('sales_price'))
+        total_stock_price = products_data.aggregate(total_stock_price=Sum('sales_price'))['total_stock_price'] or 0
+        
         
         total_sales_prices=invoice_data.aggregate(total=Sum('grand_total'))['total']
         invoiceIds = invoice_data.values_list('id', flat=True);
@@ -1329,7 +1332,7 @@ class DashboardAPIView(APIView):
         productIds = InvoiceItem.objects.filter(invoice_id__in=invoiceIds).values_list('product_id', flat=True).distinct()
       
          # Query to calculate the sum of sales_price and purchase_price
-        sum_query = Product.objects.filter(id__in=productIds).aggregate(
+        sum_query = products_data.filter(id__in=productIds).aggregate(
                  total_sales_price=Sum('sales_price'),
                  total_purchase_price=Sum('purchase_price')
         )
@@ -1352,8 +1355,8 @@ class DashboardAPIView(APIView):
                 },
                'profit_margin': 0.0 if total_sales_price == 0 else (absolute_profit_margin / total_sales_price) * 100,
                'absolute_profit_margin': absolute_profit_margin,
-               'total_sales_price': total_sales_price,
-               'total_sales_prices':(total_sales_prices or 0.0)
+               'total_sales_price': (total_sales_prices or 0.0),
+               'total_stock_price': total_stock_price
             }
         }
 
