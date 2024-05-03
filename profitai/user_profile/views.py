@@ -1275,8 +1275,9 @@ class DashboardAPIView(APIView):
         # Get the business profile associated with the current user
         business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
         
+        is_purchase_filter = request.GET.get('is_purchase', 0);
         # Filter invoices by business profile and customer ID
-        invoice_data = Invoice.objects.filter(business_profile=business_profile)
+        invoice_data = Invoice.objects.filter(business_profile=business_profile,customer__is_purchase=int(is_purchase_filter))
 
         # Get sales data for the current month
         current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(
@@ -1320,10 +1321,10 @@ class DashboardAPIView(APIView):
         # Sort x_labels to ensure chronological order
         x_labels.sort()
         
-        total_sales_by_brand = Product.objects.values('brand').annotate(value=Sum('sales_price'))
+        total_sales_by_brand = Product.objects.filter(business_profile_id=business_profile.id).values('brand').annotate(value=Sum('sales_price'))
         
         # Query to calculate the sum of sales_price and purchase_price
-        sum_query = Product.objects.aggregate(
+        sum_query = Product.objects.filter(business_profile_id=business_profile.id).aggregate(
                  total_sales_price=Sum('sales_price'),
                  total_purchase_price=Sum('purchase_price')
         )
@@ -1345,7 +1346,8 @@ class DashboardAPIView(APIView):
                    'x_labels': x_labels
                 },
                'profit_margin': (absolute_profit_margin / total_sales_price)*100,
-               'absolute_profit_margin': absolute_profit_margin
+               'absolute_profit_margin': absolute_profit_margin,
+               'total_sales_price': total_sales_price
             }
         }
 
