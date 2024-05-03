@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import Http404, JsonResponse
-from invoice.models import Invoice
+from invoice.models import Invoice,InvoiceItem
 from inventory.models import Product
 from invoice.serializers import InvoiceSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
@@ -1321,17 +1321,22 @@ class DashboardAPIView(APIView):
         # Sort x_labels to ensure chronological order
         x_labels.sort()
         
-        total_sales_by_brand = Product.objects.filter(business_profile_id=business_profile.id).values('brand').annotate(value=Sum('sales_price'))
+        total_sales_by_brand = Product.objects.filter(business_profile=business_profile).values('brand').annotate(value=Sum('sales_price'))
         
-        # Query to calculate the sum of sales_price and purchase_price
-        sum_query = Product.objects.filter(business_profile_id=business_profile.id).aggregate(
+        total_sales_prices=invoice_data.aggregate(total=Sum('grand_total'))['total']
+        invoiceIds = invoice_data.values_list('id', flat=True);
+        
+        productIds = InvoiceItem.objects.filter(invoice_id__in=invoiceIds).values_list('product_id', flat=True).distinct()
+      
+         # Query to calculate the sum of sales_price and purchase_price
+        sum_query = Product.objects.filter(id__in=productIds).aggregate(
                  total_sales_price=Sum('sales_price'),
                  total_purchase_price=Sum('purchase_price')
         )
         
         # Calculate profit margin
-        total_sales_price = float(sum_query['total_sales_price'])
-        total_purchase_price = float(sum_query['total_purchase_price'])
+        total_sales_price = float(sum_query['total_sales_price'] or 0)
+        total_purchase_price = float(sum_query['total_purchase_price'] or 0)
         absolute_profit_margin = (total_sales_price-total_purchase_price)
         response = {
             "status_code": 200,
@@ -1345,9 +1350,10 @@ class DashboardAPIView(APIView):
                    'previous_month_data': previous_month_values,
                    'x_labels': x_labels
                 },
-               'profit_margin': (absolute_profit_margin / total_sales_price)*100,
+               'profit_margin': 0.0 if total_sales_price == 0 else (absolute_profit_margin / total_sales_price) * 100,
                'absolute_profit_margin': absolute_profit_margin,
-               'total_sales_price': total_sales_price
+               'total_sales_price': total_sales_price,
+               'total_sales_prices':(total_sales_prices or 0.0)
             }
         }
 
