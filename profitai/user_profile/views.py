@@ -1325,12 +1325,19 @@ class DashboardAPIView(APIView):
         products_data = Product.objects.filter()
        
         
-        total_sales_by_brand= products_data.values('brand').annotate(value=Sum('sales_price'))
+        total_sales_by_brand= products_data.values('brand').annotate(
+        value=Sum(
+                ExpressionWrapper(
+                  F('sales_price') * F('remaining_quantity'),
+                 output_field=DecimalField()
+              )
+          )
+        )
         total_stock_price = products_data.aggregate(total_stock_price=Sum('sales_price'))['total_stock_price'] or 0
         
         
         total_sales_prices=invoice_data.aggregate(total=Sum('grand_total'))['total']
-        invoiceIds = invoice_data.values_list('id', flat=True);
+        invoiceIds = invoice_data.values_list('id', flat=True); 
         
         productIds = InvoiceItem.objects.filter(invoice_id__in=invoiceIds).values_list('product_id', flat=True).distinct()
       
@@ -1345,16 +1352,16 @@ class DashboardAPIView(APIView):
 
         # Get top-selling product IDs and their total quantities for the current month
         top_selling_products = InvoiceItem.objects.filter(
-                # invoice__created_at__month=current_month
+                invoice__created_at__month=current_month
         ).values('product_id').annotate(
                 total_quantity=Sum('quantity')
         ).order_by('-total_quantity')[:10]
         
         top_selling_product_ids = [item['product_id'] for item in top_selling_products]
         top_selling_items = products_data.filter(id__in=top_selling_product_ids).annotate(
-    name=F('product_name'),  # Rename product_name as name
-    amount=F('sales_price')  # Set sales_price as amount
-).distinct()
+            name=F('product_name'),  # Rename product_name as name
+             amount=F('sales_price')  # Set sales_price as amount
+        ).distinct()
         
         # Calculate profit margin
         total_sales_price = float(sum_query['total_sales_price'] or 0)
