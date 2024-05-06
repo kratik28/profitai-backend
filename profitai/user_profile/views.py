@@ -3,6 +3,7 @@ from django.http import Http404, JsonResponse
 from invoice.models import Invoice,InvoiceItem
 from inventory.models import Product
 from invoice.serializers import InvoiceSerializer
+from inventory.serializers import ProductSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
 from user_profile.models import UserProfile, UserProfileOTP, BusinessProfile, Customer
 from user_profile.pagination import InfiniteScrollPagination
@@ -1293,7 +1294,7 @@ class DashboardAPIView(APIView):
         current_month_values = [entry['total'] for entry in current_month_data]
 
         # Extracting total values for the previous month into a dictionary for efficient lookup
-        previous_month_totals = {entry['day'].strftime('%Y-%m-%d'): entry['total'] for entry in previous_month_data}
+        previous_month_totals = {entry['day'].strftime('%d %b %Y'): entry['total'] for entry in previous_month_data}
 
         # Initialize previous month values list
         previous_month_values = []
@@ -1302,7 +1303,7 @@ class DashboardAPIView(APIView):
         x_labels = []
 
         for entry in current_month_data:
-          day_str = entry['day'].strftime('%Y-%m-%d')
+          day_str = entry['day'].strftime('%d %b %Y')
           x_labels.append(day_str)  # Add label for current month
           previous_month_total = previous_month_totals.get(day_str, 0)  # Get total for corresponding day in previous month
           previous_month_values.append(previous_month_total)
@@ -1321,7 +1322,9 @@ class DashboardAPIView(APIView):
         # Sort x_labels to ensure chronological order
         x_labels.sort()
         
-        products_data = Product.objects.filter(business_profile=business_profile)
+        products_data = Product.objects.filter()
+       
+        
         total_sales_by_brand= products_data.values('brand').annotate(value=Sum('sales_price'))
         total_stock_price = products_data.aggregate(total_stock_price=Sum('sales_price'))['total_stock_price'] or 0
         
@@ -1337,6 +1340,19 @@ class DashboardAPIView(APIView):
                  total_purchase_price=Sum('purchase_price')
         )
         
+        # Get the current month
+        current_month = timezone.now().month
+
+        # Get top-selling product IDs and their total quantities for the current month
+        top_selling_products = InvoiceItem.objects.filter(
+                # invoice__created_at__month=current_month
+        ).values('product_id').annotate(
+                total_quantity=Sum('quantity')
+        ).order_by('-total_quantity')[:10]
+        
+        top_selling_product_ids = [item['product_id'] for item in top_selling_products]
+        top_selling_items = products_data.filter(id__in=top_selling_product_ids).distinct()
+        
         # Calculate profit margin
         total_sales_price = float(sum_query['total_sales_price'] or 0)
         total_purchase_price = float(sum_query['total_purchase_price'] or 0)
@@ -1346,6 +1362,7 @@ class DashboardAPIView(APIView):
             "status": "success",
             "message": "Invoice data retrieved successfully!",
             'data': {
+                'top_selling_items':ProductSerializer(top_selling_items,many= True).data,
                 'total_sales_by_brand': total_sales_by_brand,
                 'sales_graph': {
                    'current_month_data': current_month_values,
