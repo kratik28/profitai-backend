@@ -55,7 +55,7 @@ class InvoiceListCreateView(APIView):
     pagination_class = InfiniteScrollPagination
     def get(self , request):
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
-        queryset = Invoice.objects.filter(business_profile=business_profile)
+        queryset = Invoice.objects.filter(business_profile=business_profile).order_by("-id")
         paginator = self.pagination_class()
         
         is_purchase_filter = request.GET.get('is_purchase', None);
