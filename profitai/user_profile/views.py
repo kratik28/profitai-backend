@@ -3,7 +3,7 @@ from django.http import Http404, JsonResponse
 from invoice.models import Invoice,InvoiceItem
 from inventory.models import Product
 from invoice.serializers import InvoiceSerializer
-from inventory.serializers import ProductSerializer
+from .serializers import TopSellingProductSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
 from user_profile.models import UserProfile, UserProfileOTP, BusinessProfile, Customer
 from user_profile.pagination import InfiniteScrollPagination
@@ -1351,7 +1351,10 @@ class DashboardAPIView(APIView):
         ).order_by('-total_quantity')[:10]
         
         top_selling_product_ids = [item['product_id'] for item in top_selling_products]
-        top_selling_items = products_data.filter(id__in=top_selling_product_ids).distinct()
+        top_selling_items = products_data.filter(id__in=top_selling_product_ids).annotate(
+    name=F('product_name'),  # Rename product_name as name
+    amount=F('sales_price')  # Set sales_price as amount
+).distinct()
         
         # Calculate profit margin
         total_sales_price = float(sum_query['total_sales_price'] or 0)
@@ -1362,7 +1365,7 @@ class DashboardAPIView(APIView):
             "status": "success",
             "message": "Invoice data retrieved successfully!",
             'data': {
-                'top_selling_items':ProductSerializer(top_selling_items,many= True).data,
+                'top_selling_items':TopSellingProductSerializer(top_selling_items,many= True).data,
                 'total_sales_by_brand': total_sales_by_brand,
                 'sales_graph': {
                    'current_month_data': current_month_values,
