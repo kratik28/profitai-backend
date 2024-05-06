@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from invoice.models import Invoice
+from inventory.models import Product
 from master_menu.serializers import BusinessTypeSerializer
 from user_profile.models import UserProfile, BusinessProfile,Customer
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -123,4 +124,16 @@ class CustomerSortSerializer(serializers.ModelSerializer):
             typee = request.data.keys()
             data['sort_type'] = list(typee)[0]
 
+        return data
+    
+class TopSellingProductSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source='product_name')
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, source='sales_price')
+    
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'amount']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
         return data
