@@ -73,7 +73,8 @@ class InvoiceListCreateView(APIView):
         if search:
                 queryset = queryset.filter( 
                       Q(customer__customer_name__icontains=search)|
-                      Q(invoice_counter__icontains=search)
+                      Q(invoice_counter__icontains=search) |
+                      Q(payment_type__icontains=search)
                   )
         if date_from_param and date_to_param:
            date_from = datetime.datetime.strptime(date_from_param, '%Y-%m-%d').date()
