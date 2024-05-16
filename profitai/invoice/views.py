@@ -57,7 +57,6 @@ class InvoiceListCreateView(APIView):
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
         queryset = Invoice.objects.filter(business_profile=business_profile).order_by("-id")
         paginator = self.pagination_class()
-        
         is_purchase_filter = request.GET.get('is_purchase', None);
         search = request.GET.get('search', None)
         date_from_param =request.GET.get('date_from', None)
@@ -242,16 +241,15 @@ class InvoiceOrderAPI(APIView):
                     prod = Product.objects.select_for_update().filter(id=item["productId"]).first()
                     if not prod:
                         return Response({"status_code": 200, "status": "error", "message": f"Product with id {item['productId']} not found"})
-                    if prod.remaining_quantity <= 0:
+                    if prod.remaining_quantity and prod.remaining_quantity <= 0:
                         return Response({"status_code": 200, "status": "error", "message": "Product out of stock. Please update your inventory."})
                     if item["quantity"] > prod.remaining_quantity:
                         return Response({"status_code": 200, "status": "error", "message": "Insufficient stock. You don't have enough quantity for the requested product."})
                     product_ids.append({"productId": prod.id, "quantity": item["quantity"]})
-                print("business_profile", "???")
+
                 # Get business profile and customer
-                business_profile =  BusinessProfile.objects.filter(is_active=True).first()
+                business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
                 customer = get_object_or_404(Customer, id=customer_id)
-                
                 # Create invoice
                 invoice = Invoice.objects.create(
                     business_profile=business_profile,
