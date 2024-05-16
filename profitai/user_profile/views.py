@@ -474,7 +474,7 @@ class VendorListAPIView(APIView):
         search = self.request.GET.get('search', None)
         favourite = self.request.GET.get('favourite', None)
         businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True).first()
-        vendor_queryset = Customer.objects.filter(invoice__business_profile=businessprofile, is_purchase=True).distinct().order_by('-id')
+        vendor_queryset = Customer.objects.filter(business_profile=businessprofile, is_purchase=True).distinct().order_by('-id')
         if search:
                   vendor_queryset = vendor_queryset.filter( 
                       Q(customer_name__icontains=search)|
@@ -516,9 +516,7 @@ class CustomerListCreateAPIView(APIView):
     def get(self, request):
       
         businessprofile=BusinessProfile.objects.filter(user_profile_id = self.request.user.id,is_active= True).first()
-        print(self.request.user.id, businessprofile, "businessprofile")
-        cus_queryset = Customer.objects.filter(invoice__business_profile=businessprofile,is_purchase=False).distinct().order_by('-id')
-        
+        cus_queryset = Customer.objects.filter(business_profile=businessprofile, is_purchase=False).distinct().order_by('-id')
         name = self.request.GET.get('name', None)
         favourite = self.request.GET.get('favourite', None)
         sales = self.request.GET.get('sales', None)
@@ -541,7 +539,6 @@ class CustomerListCreateAPIView(APIView):
             )
         )
         cus_queryset = get_grand_total_and_status(cus_queryset,businessprofile)
-        print(cus_queryset, "cus_queryset")
         if favourite:
             cus_queryset = cus_queryset.filter(favourite= True)
         if name == "ascending":
