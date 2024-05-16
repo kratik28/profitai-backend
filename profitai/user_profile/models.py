@@ -60,6 +60,7 @@ class BusinessProfile(models.Model):
     address2 = models.CharField(max_length=100, null=True, default=None, blank=True)
     email = models.EmailField(blank=True)
     is_active = models.BooleanField(default=True)
+    is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

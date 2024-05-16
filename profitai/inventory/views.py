@@ -16,7 +16,7 @@ class ProductListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
     def get(self , request):
-        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
         Product.objects.filter(total_quantity__lte=0).update(status=1)
         queryset = business_profile.product_set.all().order_by("product_name")
         total_length_before_pagination = queryset.count()
@@ -47,7 +47,7 @@ class ProductListCreateView(APIView):
     def post(self, request):
         # Create a new object
         try:
-            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
             request.data["business_profile"]=business_profile.id
             remaining_quantity = request.data["total_quantity"]
             request.data["remaining_quantity"] = remaining_quantity
@@ -120,7 +120,7 @@ class ProductRetrieveUpdateDestroyAPIView(APIView):
             instance = self.get_object(id)
             
             # Get the business profile of the current user
-            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
+            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted = False).first()
             request.data["business_profile"] = business_profile.id
             
             # Update remaining quantity and status based on the request data
@@ -183,7 +183,7 @@ class InventorySortingFilterAPI(APIView):
             sub_queryset = None 
             queryset = None 
             data = None  
-            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
 
             if "sorting" in request.data:
                 sorting = request.data["sorting"]
@@ -260,7 +260,7 @@ class InventorySearchAPI(APIView):
 
     def get(self,request):
         try:
-            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
             search_query = request.GET.get('search')
             if search_query !="":
                 products = Product.objects.filter(business_profile = businessprofile).filter(
@@ -355,7 +355,7 @@ class ProductAnalyticsAPI(APIView):
     permission_classes = [IsAuthenticated]
     def get(self,request):
         try:
-            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
             if business_profile is not None:
                 productss = business_profile.product_set.all()
                 invoice = business_profile.invoice_set.all()           

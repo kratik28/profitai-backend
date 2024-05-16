@@ -23,7 +23,7 @@ class InvoiceCustomerListView(APIView):
     pagination_class = InfiniteScrollPagination
     def get(self , request):
         customerId = request.GET.get("customer_id")
-        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
         invoice_item_data = Invoice.objects.filter(business_profile=business_profile,customer=customerId)
         queryset = invoice_item_data.filter(customer_id = customerId).order_by('-id')
         paginator = self.pagination_class()
@@ -54,7 +54,7 @@ class InvoiceListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
     def get(self , request):
-        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
         queryset = Invoice.objects.filter(business_profile=business_profile).order_by("-id")
         paginator = self.pagination_class()
         is_purchase_filter = request.GET.get('is_purchase', None);
@@ -136,7 +136,7 @@ class InvoiceRetrieveUpdateDestroyAPIView(APIView):
     def put(self, request, id):
         try:
             instance = self.get_object(id)
-            business_profile = BusinessProfile.objects.filter(user_profile_id=request.user.id,is_active=True)
+            business_profile = BusinessProfile.objects.filter(user_profile_id=request.user.id,is_active=True, is_deleted = False)
             request.data["business_profile"] = business_profile.first().id
             pre_paid = instance.paid_amount or 0.00
             if instance.payment_type == "pay_letter" and request.data["payment_type"] == "pay_letter":
@@ -248,7 +248,7 @@ class InvoiceOrderAPI(APIView):
                     product_ids.append({"productId": prod.id, "quantity": item["quantity"]})
 
                 # Get business profile and customer
-                business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+                business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
                 customer = get_object_or_404(Customer, id=customer_id)
                 is_purchase = request.data.get("is_purchase", customer.is_purchase)
                 # Create invoice
@@ -337,7 +337,7 @@ class InvoiceSearch(APIView):
     def get(self, request):
         
         try:
-            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
             search_query = request.GET.get('search')
             current_domain = request.build_absolute_uri('/media').rstrip('/')
             if search_query !="":
@@ -394,7 +394,7 @@ class InvoiceSort(APIView):
     pagination_class = InfiniteScrollPagination
     def post(self, request):
         try:
-            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
             queryset = business_profile.invoice_set.all()
             if "amount" in request.data.keys():
                 if request.data["amount"] == "low to high":
@@ -485,7 +485,7 @@ class InvoiceListChartView(APIView):
     pagination_class = InfiniteScrollPagination
     def get(self , request):
         current_date = timezone.now()
-        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
+        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
         today_queryset = Invoice.objects.filter(business_profile=business_profile, created_at__date=current_date.date())
         today_invoice = len(today_queryset)
         calculation = get_percentage(today_queryset,today_invoice)
@@ -572,7 +572,7 @@ class InvoiceCustomerSalesAnalytics(APIView):
         product_id=request.GET.get('product_id', 0);
 
         # Get the business profile associated with the current user
-        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted = False).first()
         
         # Filter invoices by business profile and customer ID
         invoice_data = Invoice.objects.filter(business_profile=business_profile,customer__is_purchase=int(is_purchase_filter))

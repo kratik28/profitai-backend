@@ -108,7 +108,7 @@ class CustomUserOTPLoginView(APIView):
                     tokens = UserTokenObtainPairSerializer.get_token(user)
                     Dataserializer = UserProfileSerializer(query)
 
-                    business_profile=BusinessProfile.objects.filter(user_profile_id = user.id).first()
+                    business_profile=BusinessProfile.objects.filter(user_profile_id = user.id, is_deleted = False).first()
                     flag = True if business_profile is not None else False
                     if flag==True and business_profile.is_active==True:
             
@@ -163,7 +163,7 @@ class BusinessProfileListCreateAPIView(APIView):
     def post(self, request):
       
         try:
-            instance =BusinessProfile.objects.filter(user_profile_id = self.request.user.id,is_active= True).first()
+            instance =BusinessProfile.objects.filter(user_profile_id = self.request.user.id,is_active= True, is_deleted = False).first()
             if instance== None:
                 # Create a new object
                 user_profile = UserProfile.objects.filter(id=self.request.user.id).first()
@@ -200,7 +200,7 @@ class BusinessProfileListCreateAPIView(APIView):
                 
                 if serializer.is_valid():
                     serializer.save()
-                    instance =BusinessProfile.objects.filter(user_profile_id = self.request.user,is_active= True).first()
+                    instance =BusinessProfile.objects.filter(user_profile_id = self.request.user,is_active= True, is_deleted = False).first()
                     try:
                         new_business = request.data["new_business"]
                     except:
@@ -288,7 +288,7 @@ class BusinessProfileRetrieveUpdateDestroyAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def get_object(self, request):
         try:
-            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True, is_deleted = False).first()
             return businessprofile
         except BusinessProfile.DoesNotExist:
             status.HTTP_404_NOT_FOUND
@@ -473,7 +473,7 @@ class VendorListAPIView(APIView):
         name = self.request.GET.get('name', None)
         search = self.request.GET.get('search', None)
         favourite = self.request.GET.get('favourite', None)
-        businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True).first()
+        businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True, is_deleted = False).first()
         vendor_queryset = Customer.objects.filter(business_profile=businessprofile, is_purchase=True).distinct().order_by('-id')
         if search:
                   vendor_queryset = vendor_queryset.filter( 
@@ -515,7 +515,7 @@ class CustomerListCreateAPIView(APIView):
 
     def get(self, request):
       
-        businessprofile=BusinessProfile.objects.filter(user_profile_id = self.request.user.id,is_active= True).first()
+        businessprofile=BusinessProfile.objects.filter(user_profile_id = self.request.user.id, is_active= True, is_deleted = False).first()
         cus_queryset = Customer.objects.filter(business_profile=businessprofile, is_purchase=False).distinct().order_by('-id')
         name = self.request.GET.get('name', None)
         favourite = self.request.GET.get('favourite', None)
@@ -583,7 +583,7 @@ class CustomerListCreateAPIView(APIView):
     
     def put(self, request):
         try:
-            businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True).first()
+            businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user, is_active= True, is_deleted = False).first()
             customer = Customer.objects.filter(business_profile=businessprofile, id=request.data['id']).first()
             
             if customer:
@@ -632,7 +632,7 @@ class CustomerListCreateAPIView(APIView):
                 }
                 return Response(response)
             else:
-                businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True).first()
+                businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user, is_active= True, is_deleted = False).first()
                 request.data["business_profile"] = businessprofile.id
                 serializer = CustomerSerializer(data=request.data)
                 if serializer.is_valid():
@@ -662,7 +662,7 @@ class CustomerSearchAPI(APIView):
         try:
             search_query = request.GET.get('search')
             search_type=request.GET.get('type')
-            businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True).first()
+            businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user, is_active= True, is_deleted = False).first()
             if search_query !="":
                 customers = Customer.objects.filter(
                     Q(customer_name__icontains=search_query) |
@@ -732,7 +732,7 @@ class UserProfileUpdateview(APIView):
     def get(self ,request,*args, **kwargs):
         instance = self.get_object()
         phone_number = self.request.user.phone_number
-        businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+        businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True, is_deleted = False).first()
         businessprofileserializer = BusinessProfileSerializer(businessprofile)
         serializer = UserProfileGetSerializer(instance,context={"request":request},partial=True)
         response = {
@@ -790,11 +790,11 @@ class CustomerfavouriteFrequentTopAPI(APIView):
     permission_classes = [IsAuthenticated]
     def get(self,request):
         try:
-            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True, is_deleted = False).first()
             queryset = Customer.objects.filter(invoice__business_profile=businessprofile).distinct().order_by('-id')
             favourite_customer = queryset.filter(favourite= True).order_by('customer_name')
             frequent_customer = queryset.annotate(invoice_count=Count('invoice')).order_by('invoice_count')
-            top_customer = queryset.annotate(total_sum=Sum('invoice__grand_total')).order_by('total_sum')         
+            top_customer = queryset.annotate(total_sum=Sum('invoice__grand_total')).order_by('total_sum')    
 
             favourite_customer_serializer = CustomerSerializer(favourite_customer,many = True)
             frequent_customer_serializer = CustomerSerializer(frequent_customer,many = True)
@@ -857,7 +857,7 @@ class CustomerFilterAPIView(APIView):
             gst_number = request.GET.get('gst_number')
             area = request.GET.get('area')
             status = request.GET.get('status')
-            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True, is_deleted = False).first()
             
             if not favourite and not gst_number and not status and not area:
                 return Response({"status_code": 200,
@@ -925,7 +925,7 @@ class CustomerFilterAPIView(APIView):
     def post(self , request):
         
         try:
-            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True,  is_deleted = False).first()
             favourite = request.data.get("favourite")
             gst_number = request.data.get("gst_number")
             area = request.data.get("area")
@@ -942,37 +942,37 @@ class CustomerFilterAPIView(APIView):
                 customer = queryset.filter(favourite = True).order_by("-id")
                 customers = get_grand_total_and_status(customer,businessprofile)
                 result_page = paginator.paginate_queryset(customers, request, view=self)
-                customer_serializer = CustomerallSerializer(result_page,many = True)
+                customer_serializer = CustomerallSerializer(result_page, many = True)
             if favourite == 2:
                 customer = queryset.filter(favourite = False).order_by('-id')
                 customers = get_grand_total_and_status(customer,businessprofile)
                 result_page = paginator.paginate_queryset(customers, request, view=self)
-                customer_serializer = CustomerallSerializer(result_page,many = True)
+                customer_serializer = CustomerallSerializer(result_page, many = True)
             if gst_number==1:
                 customer = queryset.filter(gst_number__isnull=False)
                 customers = get_grand_total_and_status(customer,businessprofile)
                 result_page = paginator.paginate_queryset(customers, request, view=self)
-                customer_serializer = CustomerallSerializer(result_page,many = True)
+                customer_serializer = CustomerallSerializer(result_page, many = True)
             if gst_number==2:
                 customer = queryset.filter(gst_number__isnull=True)
                 customers = get_grand_total_and_status(customer,businessprofile)
                 result_page = paginator.paginate_queryset(customers, request, view=self)
-                customer_serializer = CustomerallSerializer(result_page,many = True)
+                customer_serializer = CustomerallSerializer(result_page, many = True)
             if status=="red":
                 customer = get_grand_total_and_status(queryset,businessprofile)
                 customers=customer.filter(last_invoice_status=1).order_by("-id")
                 result_page = paginator.paginate_queryset(customers, request, view=self)
-                customer_serializer = CustomerallSerializer(result_page,many = True)
+                customer_serializer = CustomerallSerializer(result_page, many = True)
             if status=="yellow":
                 customer = get_grand_total_and_status(queryset,businessprofile)
                 customers=customer.filter(last_invoice_status=2).order_by("-id")
                 result_page = paginator.paginate_queryset(customers, request, view=self)
-                customer_serializer = CustomerallSerializer(result_page,many = True)
+                customer_serializer = CustomerallSerializer(result_page, many = True)
             if status=="green":
                 customer = get_grand_total_and_status(queryset,businessprofile)
                 customers=customer.filter(last_invoice_status=3).order_by("-id")
                 result_page = paginator.paginate_queryset(customers, request, view=self)
-                customer_serializer = CustomerallSerializer(result_page,many = True)
+                customer_serializer = CustomerallSerializer(result_page, many = True)
             total_length_before_pagination = customers.count()
             total_pages = paginator.page.paginator.num_pages
             response   =    {
@@ -999,7 +999,7 @@ class CustomerSortAPIView(APIView):
     def post(self ,request):
         try:
             
-            businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+            businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True,  is_deleted = False).first()
             # debt = request.data.get("debt")
             # sales = request.data.get("sales")
             # user_name = request.data.get("user_name")
@@ -1008,7 +1008,7 @@ class CustomerSortAPIView(APIView):
             # sorted_customers = None
 
             queryset = Customer.objects.filter(business_profile=businessprofile)
-            queryset = Customer.objects.filter(invoice__business_profile=businessprofile,is_purchase=False).distinct().order_by('-id')
+            queryset = Customer.objects.filter(invoice__business_profile=businessprofile, is_purchase=False).distinct().order_by('-id')
             paginator = self.pagination_class()
             sorted_customers= queryset
             # customers_with_remaining_total = queryset.annotate(remaining_total=Sum('invoice__remaining_total'))
@@ -1033,7 +1033,7 @@ class CustomerSortAPIView(APIView):
             #     sorted_customers = queryset.order_by("customer_name")
             # if user_name =="descending":
             #     sorted_customers = queryset.order_by("-customer_name")
-            customers_data = get_grand_total_and_status(sorted_customers,businessprofile)
+            customers_data = get_grand_total_and_status(sorted_customers, businessprofile)
             total_length_before_pagination = sorted_customers.count()
             result_page = paginator.paginate_queryset(customers_data, request, view=self)
             total_pages = paginator.page.paginator.num_pages
@@ -1062,7 +1062,7 @@ class BusinessProfileDeactivate(APIView):
     @csrf_exempt
     def post(self, request, *args, **kwargs):
         try:
-            businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+            businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True,  is_deleted = False).first()
             print(businessprofile)
             if businessprofile:
                 data = request.data['is_active']
@@ -1129,7 +1129,7 @@ class InvoiceSalesReport(APIView):
     permission_classes = [IsAuthenticated]
     def get(self,request):
         try:
-            businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+            businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True,  is_deleted = False).first()
             if businessprofile is not None:
                 all_invoice  = businessprofile.invoice_set.all().filter(id=1000)
                 paid = all_invoice.filter(payment_type= 'paid')
@@ -1174,7 +1174,7 @@ class AllInvoiceAmountReport(APIView):
 
     def get(self ,request):
         try:
-            businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True).first()
+            businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user, is_active = True,  is_deleted = False).first()
             all_invoice  = businessprofile.invoice_set.all()
             grand_total_sum = all_invoice.aggregate(Sum('grand_total'))["grand_total__sum"]
             paid_amount_sum = all_invoice.aggregate(Sum('paid_amount'))['paid_amount__sum']
@@ -1271,11 +1271,11 @@ class DashboardAPIView(APIView):
         
         
         # Get the business profile associated with the current user
-        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True).first()
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted = False).first()
         
         is_purchase_filter = request.GET.get('is_purchase', 0);
         # Filter invoices by business profile and customer ID
-        invoice_data = Invoice.objects.filter(business_profile=business_profile,customer__is_purchase=int(is_purchase_filter))
+        invoice_data = Invoice.objects.filter(business_profile=business_profile,is_purchase=int(is_purchase_filter))
 
         # Get sales data for the current month
         current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(
@@ -1390,8 +1390,8 @@ class UserProfitDeleteAPIView(APIView):
     permission_classes = [IsAuthenticated]
     def delete(self, request):
         # Delete active BusinessProfile associated with the current user
-        deleted_count = BusinessProfile.objects.filter(user_profile=self.request.user, is_active=True).update(is_active=False)
-        
+        deleted_count = BusinessProfile.objects.filter(user_profile=self.request.user, is_active=True,  is_deleted = False).update( is_deleted = True)
+        print(deleted_count)
         if deleted_count > 0:  # If at least one BusinessProfile was successfully deactivated
             response_data = {
                 "status_code": status.HTTP_200_OK,
