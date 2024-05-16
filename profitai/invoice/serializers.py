@@ -19,7 +19,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
     customer = CustomerPdfSerializer()
     class Meta:
         model = Invoice
-        fields = [ "id","invoice_counter","order_date_time","status","grand_total","sub_total","paid_amount","remaining_total","tax","discount","payment_type",'payment_option',"Invoice","description","is_deleted","created_at","updated_at","customer"]
+        fields = [ "id","invoice_counter","is_purchase", "order_date_time","status","grand_total","sub_total","paid_amount","remaining_total","tax","discount","payment_type",'payment_option',"Invoice","description","is_deleted","created_at","updated_at","customer"]
 
     Invoice = serializers.SerializerMethodField()
 

@@ -21,6 +21,7 @@ class Invoice(models.Model):
     description = models.TextField(max_length=100, null=True, default=None, blank=True)
     Invoice_pdf = models.FileField(upload_to='invoice_pdf/', blank=True, null=True)
     is_deleted = models.BooleanField(default=False)
+    is_purchase = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

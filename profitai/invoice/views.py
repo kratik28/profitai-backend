@@ -68,7 +68,7 @@ class InvoiceListCreateView(APIView):
             invoiceIds = list(InvoiceItem.objects.filter(product_id=product_id).values_list('invoice_id', flat=True))
             queryset = queryset.filter(id__in=invoiceIds)
         if is_purchase_filter is not None:
-           queryset = queryset.filter(customer__is_purchase=int(is_purchase_filter))
+           queryset = queryset.filter(is_purchase=int(is_purchase_filter))
         if search:
                 queryset = queryset.filter( 
                       Q(customer__customer_name__icontains=search)|
@@ -250,10 +250,12 @@ class InvoiceOrderAPI(APIView):
                 # Get business profile and customer
                 business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True).first()
                 customer = get_object_or_404(Customer, id=customer_id)
+                is_purchase = request.data.get("is_purchase", customer.is_purchase)
                 # Create invoice
                 invoice = Invoice.objects.create(
                     business_profile=business_profile,
                     customer=customer,
+                    is_purchase=is_purchase,
                     payment_type=payment_type,
                     payment_option=payment_option,
                     grand_total=grand_total,
@@ -353,8 +355,6 @@ class InvoiceSearch(APIView):
                         "status": "success",
                         "message": "Customers and found successfully!",
                         "invoice": innvoice_serializer.data,
-                        
-                
                     }
                     return Response(response)
                 else:
