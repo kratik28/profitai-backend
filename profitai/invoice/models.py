@@ -2,7 +2,7 @@ import datetime
 import uuid
 from django.db import models
 from user_profile.models import BusinessProfile, Customer
-from inventory.models import Product
+from inventory.models import Product, Batches
 
 class Invoice(models.Model):
     business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=False)
@@ -47,6 +47,7 @@ class Invoice(models.Model):
 class InvoiceItem(models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, null=False)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, null=False)
+    batch = models.ForeignKey(Batches, on_delete=models.CASCADE, null=True)
     quantity = models.IntegerField(default=None, blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, null=True, default=None, blank=True)
     is_deleted = models.BooleanField(default=False)

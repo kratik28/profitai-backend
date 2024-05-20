@@ -3,7 +3,7 @@ from invoice.utils import get_barchart, get_percentage, invoice_pdf_create, page
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from inventory.models import Product
+from inventory.models import Product, Batches
 from inventory.serializers import ProductSerializer
 from invoice.serializers import InvoiceCreateSerializer, InvoiceSerializer,InvoiceItemSerializer, ProductdataSerializer
 from invoice.models import Invoice,InvoiceItem
@@ -214,8 +214,124 @@ class InvoiceRetrieveUpdateDestroyAPIView(APIView):
             }
         return Response(response)
 
+# class InvoiceOrderAPI(APIView):
+#     permission_classes = [IsAuthenticated]
+#     def post(self, request):
+#         try:
+#             with transaction.atomic():
+#                 # Extract data from request
+#                 product_quantity = request.data.pop("product_and_quantity")
+#                 customer_id = request.data.get("customer")
+#                 payment_type = request.data.get("payment_type")
+#                 payment_option = request.data.get("payment_option")
+#                 paid_amount = request.data.get("paid_amount", 0.00)
+#                 tax = request.data.get("tax", 0.00)
+#                 discount = request.data.get("discount", 0.00)
+#                 grand_total = request.data.get("grand_total", 0.00)
+#                 remaining_total = request.data.get("remaining_total", grand_total)
+#                 sub_total = request.data.get("sub_total", 0.00)
+
+#                 # Validate payment type
+#                 valid_payment_types = ["pay_letter", "remain_payment", "paid"]
+#                 if payment_type not in valid_payment_types:
+#                     return Response({"status_code": 200, "status": "error", "message": "Please select a valid payment type"})
+
+#                 product_ids = []
+#                 for item in product_quantity:
+#                     prod = Product.objects.select_for_update().filter(id=item["productId"]).first()
+#                     if not prod:
+#                         return Response({"status_code": 200, "status": "error", "message": f"Product with id {item['productId']} not found"})
+#                     if prod.remaining_quantity and prod.remaining_quantity <= 0:
+#                         return Response({"status_code": 200, "status": "error", "message": "Product out of stock. Please update your inventory."})
+#                     if item["quantity"] > prod.remaining_quantity:
+#                         return Response({"status_code": 200, "status": "error", "message": "Insufficient stock. You don't have enough quantity for the requested product."})
+#                     product_ids.append({"productId": prod.id, "quantity": item["quantity"]})
+
+#                 # Get business profile and customer
+#                 business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
+#                 customer = get_object_or_404(Customer, id=customer_id)
+#                 is_purchase = request.data.get("is_purchase", customer.is_purchase)
+#                 # Create invoice
+#                 invoice = Invoice.objects.create(
+#                     business_profile=business_profile,
+#                     customer=customer,
+#                     is_purchase=is_purchase,
+#                     payment_type=payment_type,
+#                     payment_option=payment_option,
+#                     grand_total=grand_total,
+#                     sub_total=sub_total,
+#                     paid_amount=paid_amount,
+#                     discount=discount,
+#                     tax=tax,
+#                     status=200,
+#                     remaining_total=remaining_total,
+#                     order_date_time=timezone.now()
+#                 )
+                
+#                 # Create invoice items and update product quantities
+#                 invoice_item_data = []
+#                 product_data = []
+#                 for item in product_ids:
+#                    product = Product.objects.select_for_update().get(id=item["productId"])
+#                    price = float(product.sales_price) * item["quantity"]
+#                    invoice_item_data.append(InvoiceItem(
+#                      invoice=invoice,
+#                      product=product,
+#                      price=price,
+#                      quantity=item["quantity"],
+#                      is_deleted= False,
+#                      invoice_id= invoice.id,
+#                      product_id= product.id
+#                    ))
+                   
+#                    product.remaining_quantity -= item["quantity"]
+#                    product.save()
+#                    set_remaining_product_quantity(product)
+#                    product_data.append(ProductSerializer(product).data)
+                   
+#                 # Bulk create invoice items
+#                 if invoice_item_data:
+#                      InvoiceItem.objects.bulk_create(invoice_item_data)
+                
+#                 # Prepare response data
+#                 current_domain = request.build_absolute_uri('/media').rstrip('/')
+#                 invoice_item = InvoiceItemSerializer(invoice_item_data, many=True).data
+#                 invoice_data = InvoiceCreateSerializer(invoice).data
+#                 id = range(1, len(product_data) + 1)
+#                 content = list(zip(product_data, invoice_item, id))
+#                 data = {
+#                     "invoice": invoice_data,
+#                     "content": content,
+#                     "order_date": timezone.now(),
+#                     "business_profile": business_profile,
+#                     "customer": customer,
+#                     "flage": page_break(id),
+#                 }
+
+#                 # Generate invoice PDF
+#                 invoice_id = invoice.id
+#                 invoices = invoice_pdf_create(request, data, invoice_id)
+
+#                 # Prepare response
+#                 response = {
+#                     "status_code": 200,
+#                     "status": "success",
+#                     "message": "Invoice order data",
+#                     "invoice": InvoiceCreateSerializer(invoices, context={'current_domain': current_domain}).data,
+#                 }
+#                 return Response(response)
+
+#         except Exception as e:
+#             print(f"Error: {e}")
+#             response = {
+#                 "status_code": 500,
+#                 "status": "error",
+#                 "message": f"Internal server error: {e}"
+#             }
+#             return Response(response)
 class InvoiceOrderAPI(APIView):
     permission_classes = [IsAuthenticated]
+
     def post(self, request):
         try:
             with transaction.atomic():
@@ -238,19 +354,20 @@ class InvoiceOrderAPI(APIView):
 
                 product_ids = []
                 for item in product_quantity:
-                    prod = Product.objects.select_for_update().filter(id=item["productId"]).first()
-                    if not prod:
-                        return Response({"status_code": 200, "status": "error", "message": f"Product with id {item['productId']} not found"})
-                    if prod.remaining_quantity and prod.remaining_quantity <= 0:
+                    batch = Batches.objects.select_for_update().filter(id=item["batchId"]).first()
+                    if not batch:
+                        return Response({"status_code": 200, "status": "error", "message": f"Batch with id {item['batchId']} not found"})
+                    if batch.remaining_quantity and batch.remaining_quantity <= 0:
                         return Response({"status_code": 200, "status": "error", "message": "Product out of stock. Please update your inventory."})
-                    if item["quantity"] > prod.remaining_quantity:
+                    if item["quantity"] > batch.remaining_quantity:
                         return Response({"status_code": 200, "status": "error", "message": "Insufficient stock. You don't have enough quantity for the requested product."})
-                    product_ids.append({"productId": prod.id, "quantity": item["quantity"]})
+                    product_ids.append({"batchId": batch.id, "quantity": item["quantity"]})
 
                 # Get business profile and customer
-                business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
+                business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
                 customer = get_object_or_404(Customer, id=customer_id)
                 is_purchase = request.data.get("is_purchase", customer.is_purchase)
+                
                 # Create invoice
                 invoice = Invoice.objects.create(
                     business_profile=business_profile,
@@ -267,32 +384,33 @@ class InvoiceOrderAPI(APIView):
                     remaining_total=remaining_total,
                     order_date_time=timezone.now()
                 )
-                
-                # Create invoice items and update product quantities
+               
+                # Create invoice items and update batch quantities
                 invoice_item_data = []
                 product_data = []
                 for item in product_ids:
-                   product = Product.objects.select_for_update().get(id=item["productId"])
-                   price = float(product.sales_price) * item["quantity"]
-                   invoice_item_data.append(InvoiceItem(
-                     invoice=invoice,
-                     product=product,
-                     price=price,
-                     quantity=item["quantity"],
-                     is_deleted= False,
-                     invoice_id= invoice.id,
-                     product_id= product.id
-                   ))
-                   
-                   product.remaining_quantity -= item["quantity"]
-                   product.save()
-                   set_remaining_product_quantity(product)
-                   product_data.append(ProductSerializer(product).data)
-                   
+                    batch = Batches.objects.select_for_update().get(id=item["batchId"])
+                    product = batch.product
+                    price = float(batch.sales_price) * item["quantity"]
+                    invoice_item_data.append(InvoiceItem(
+                        invoice=invoice,
+                        product=product,
+                        price=price,
+                        quantity=item["quantity"],
+                        is_deleted=False,
+                        invoice_id=invoice.id,
+                        product_id=product.id,
+                        batch=batch
+                    ))
+                    batch.remaining_quantity -= item["quantity"]
+                    batch.save()
+                    set_remaining_product_quantity(batch)
+                    # product_data.append(ProductSerializer(product).data)
+                print("BatchCreateSerializer")
                 # Bulk create invoice items
                 if invoice_item_data:
-                     InvoiceItem.objects.bulk_create(invoice_item_data)
-                
+                    InvoiceItem.objects.bulk_create(invoice_item_data)
+
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
                 invoice_item = InvoiceItemSerializer(invoice_item_data, many=True).data
@@ -311,7 +429,7 @@ class InvoiceOrderAPI(APIView):
                 # Generate invoice PDF
                 invoice_id = invoice.id
                 invoices = invoice_pdf_create(request, data, invoice_id)
-
+                
                 # Prepare response
                 response = {
                     "status_code": 200,
@@ -329,7 +447,6 @@ class InvoiceOrderAPI(APIView):
                 "message": f"Internal server error: {e}"
             }
             return Response(response)
-        
         
 class InvoiceSearch(APIView):
     permission_classes = [IsAuthenticated]

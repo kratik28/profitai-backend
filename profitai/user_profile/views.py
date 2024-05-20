@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import Http404, JsonResponse
 from invoice.models import Invoice,InvoiceItem
-from inventory.models import Product
+from inventory.models import Product, Batches
 from invoice.serializers import InvoiceSerializer
 from .serializers import TopSellingProductSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
@@ -21,7 +21,7 @@ from user_profile.models import UserProfile
 from master_menu.models import BusinessType, Industry
 from rest_framework_simplejwt.tokens import RefreshToken
 from master_menu.models import BusinessType
-from django.db.models import Sum  ,Count     
+from django.db.models import Sum  ,Count, FloatField , Value    
 import indiapins
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
@@ -31,6 +31,7 @@ import requests
 from profitai import settings
 from django.db.models.functions import TruncDay
 import re
+from django.db.models.functions import Coalesce
 
 def get_grand_total_and_status(customer,businessprofile):
     queryset = customer.annotate(
@@ -1318,57 +1319,75 @@ class DashboardAPIView(APIView):
 
         # Sort x_labels to ensure chronological order
         x_labels.sort()
-        
-        products_data = Product.objects.filter()
        
-        
-        total_sales_by_brand= products_data.values('brand').annotate(
-        value=Sum(
+        products_data = Product.objects.all()
+
+        # Calculate total sales by brand
+        total_sales_by_brand = Batches.objects.values('product__brand').annotate(
+            value=Sum(
                 ExpressionWrapper(
-                  F('sales_price') * F('remaining_quantity'),
-                 output_field=DecimalField()
-              )
-          )
+                    F('sales_price') * F('remaining_quantity'),
+                    output_field=DecimalField()
+                )
+            )
         )
-        total_stock_price = products_data.aggregate(total_stock_price=Sum('sales_price'))['total_stock_price'] or 0
-        
-        
-        total_sales_prices=invoice_data.aggregate(total=Sum('grand_total'))['total']
-        invoiceIds = invoice_data.values_list('id', flat=True); 
-        
-        productIds = InvoiceItem.objects.filter(invoice_id__in=invoiceIds).values_list('product_id', flat=True).distinct()
-      
-         # Query to calculate the sum of sales_price and purchase_price
-        sum_query = products_data.filter(id__in=productIds).aggregate(
-                 total_sales_price=Sum('sales_price'),
-                 total_purchase_price=Sum('purchase_price')
+
+        # Calculate total stock price
+        total_stock_price = Batches.objects.aggregate(
+            total_stock_price=Sum(
+                ExpressionWrapper(
+                    F('sales_price') * F('remaining_quantity'),
+                    output_field=DecimalField()
+                )
+            )
+        )['total_stock_price'] or 0
+
+        # Aggregate invoice data
+        total_sales_prices = invoice_data.aggregate(total=Sum('grand_total'))['total']
+
+        invoice_ids = invoice_data.values_list('id', flat=True)
+        product_ids = InvoiceItem.objects.filter(invoice_id__in=invoice_ids).values_list('product_id', flat=True).distinct()
+
+        # Query to calculate the sum of sales_price and purchase_price
+        sum_query = Batches.objects.filter(product_id__in=product_ids).aggregate(
+            total_sales_price=Sum('sales_price'),
+            total_purchase_price=Sum('purchase_price')
         )
-        
+
         # Get the current month
         current_month = timezone.now().month
 
-        # Get top-selling product IDs and their total quantities for the current month
+        # Fetch top selling product IDs
         top_selling_products = InvoiceItem.objects.filter(
-                invoice__created_at__month=current_month
+            invoice__created_at__month=current_month
         ).values('product_id').annotate(
-                total_quantity=Sum('quantity')
+            total_quantity=Sum('quantity')
         ).order_by('-total_quantity')[:10]
-        
+
         top_selling_product_ids = [item['product_id'] for item in top_selling_products]
+
+        # Get the sales price of the first related batch and specify the output_field as FloatField
+        batches_sales_price = Batches.objects.filter(
+            product_id=OuterRef('pk')
+        ).values('sales_price')[:1]
+
+        # Fetch the top selling products with annotated sales price
         top_selling_items = products_data.filter(id__in=top_selling_product_ids).annotate(
             name=F('product_name'),  # Rename product_name as name
-             amount=F('sales_price')  # Set sales_price as amount
+            amount=Coalesce(Subquery(batches_sales_price, output_field=FloatField()), Value(0.0), output_field=FloatField())  # Use Coalesce to handle cases where there's no related batch
         ).distinct()
-        
+
         # Calculate profit margin
         total_sales_price = float(sum_query['total_sales_price'] or 0)
         total_purchase_price = float(sum_query['total_purchase_price'] or 0)
-        absolute_profit_margin = (total_sales_price-total_purchase_price)
+        absolute_profit_margin = (total_sales_price - total_purchase_price)
+        
         response = {
             "status_code": 200,
             "status": "success",
             "message": "Invoice data retrieved successfully!",
             'data': {
+                'top_selling_products': top_selling_products,
                 'top_selling_items':TopSellingProductSerializer(top_selling_items,many= True).data,
                 'total_sales_by_brand': total_sales_by_brand,
                 'sales_graph': {

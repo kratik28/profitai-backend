@@ -127,13 +127,9 @@ class CustomerSortSerializer(serializers.ModelSerializer):
         return data
     
 class TopSellingProductSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source='product_name')
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2, source='sales_price')
-    
+    name = serializers.CharField()
+    amount = serializers.FloatField()
+
     class Meta:
         model = Product
         fields = ['id', 'name', 'amount']
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        return data

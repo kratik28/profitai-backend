@@ -1,134 +1,140 @@
 from django.shortcuts import get_object_or_404, render
-from inventory.models import Product
+from inventory.models import Product, Batches
 from invoice.models import InvoiceItem,Invoice
 from master_menu.models import ProductType
 from rest_framework.views import APIView
 from user_profile.models import BusinessProfile
 from user_profile.pagination import InfiniteScrollPagination
-from .serializers import ProductCreateSerializer, ProductSerializer
+from .serializers import ProductCreateSerializer, ProductSerializer, BatchCreateSerializer
 from rest_framework.response import Response
 from rest_framework import status
-from django.db.models import Q 
+from django.db.models import Q, Prefetch
 from django.db.models import Sum
 from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
 
 class ProductListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
-    def get(self , request):
-        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-        Product.objects.filter(total_quantity__lte=0).update(status=1)
-        queryset = business_profile.product_set.all().order_by("product_name")
-        total_length_before_pagination = queryset.count()
+    
+    def get(self, request):
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+        
+        if business_profile:
+            queryset = Product.objects.filter(business_profile=business_profile).order_by("product_name").prefetch_related(
+                Prefetch('batches', queryset=Batches.objects.filter(is_deleted=False))
+            )
+        else:
+            queryset = Product.objects.none()
+        
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(queryset, request, view=self)
         total_pages = paginator.page.paginator.num_pages
-        serializer = ProductSerializer(result_page,many= True)
-        if request.query_params.get('type')=="all":
+        serializer = ProductSerializer(result_page, many=True)
+        
+        if request.query_params.get('type') == "all":
             response = {
+                "status_code": 200,
+                "status": "success",
+                "message": "All Products Found Successfully!",
+                "data": ProductSerializer(queryset, many=True).data,
+            }
+        else:
+            response = {
+                "status_code": 200,
+                "status": "success",
+                "message": "Products Found Successfully!",
+                "total_pages": total_pages,
+                "data": serializer.data,
+                "next": paginator.get_next_link(),
+            }
+        
+        return Response(response)
+    
+    
+    @transaction.atomic
+    def post(self, request):
+        try:
+            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+            if not business_profile:
+                return Response({"status_code": 400, "status": "error", "message": "Business profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+            request.data["business_profile"] = business_profile.id
+            product_data = request.data.copy()
+            batches_data = product_data.pop('batches', [])
+
+            # Calculate remaining quantity and set status for the product
+            remaining_quantity = sum(batch.get('total_quantity', 0) for batch in batches_data)
+            product_data["remaining_quantity"] = remaining_quantity
+            product_data["status"] = 1 if remaining_quantity <= 0 else 3
+
+            product_serializer = ProductCreateSerializer(data=product_data)
+            if product_serializer.is_valid():
+                product = product_serializer.save()
+
+                batch_errors = []
+                for batch_data in batches_data:
+                    batch_data['product'] = product.id
+                    batch_serializer = BatchCreateSerializer(data=batch_data)
+                    if batch_serializer.is_valid():
+                        batch_serializer.save()
+                    else:
+                        batch_errors.append(batch_serializer.errors)
+
+                if batch_errors:
+                    transaction.set_rollback(True)
+                    return Response({"status_code": 400, "status": "error", "message": "Batch creation failed", "errors": batch_errors}, status=status.HTTP_400_BAD_REQUEST)
+
+                response = {
                     "status_code": 200,
                     "status": "success",
-                    "message":"All Products Found Successfully!",
-                    "data": ProductSerializer(queryset,many= True).data,
-    
+                    "message": "Product and Batches created successfully!",
+                    "data": product_serializer.data
                 }
-        else:
-
-            response = {
-                        "status_code": 200,
-                        "status": "success",
-                        "message":"Products Found Successfully!",
-                        "total_pages":total_pages,
-                        'total_length_all_data' :total_length_before_pagination,
-                        "data": serializer.data,
-                        "next": paginator.get_next_link()
-                    }
-        return Response(response)
-    def post(self, request):
-        # Create a new object
-        try:
-            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-            request.data["business_profile"]=business_profile.id
-            remaining_quantity = request.data["total_quantity"]
-            request.data["remaining_quantity"] = remaining_quantity
-            if request.data["remaining_quantity"] <= 0 or request.data["remaining_quantity"] == None:
-                request.data["status"]=1
+                return Response(response, status=status.HTTP_200_OK)
             else:
-                request.data["status"]=3
-            serializer = ProductCreateSerializer(data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                
-                response = {
-                        "status_code": 200,
-                        "status": "success",
-                        "message":"Product Create Successfully!",
-                        "data": serializer.data
-                    }
-                return Response(response)
-            else:
-                
-                response = {"status_code": 400,
-                            "status": "error",
-                            "messege": "Product not created "
-                            }
-                print(serializer.errors)
-                return Response(response)
+                return Response({"status_code": 400, "status": "error", "message": "Product creation failed", "errors": product_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print(f"error's {e}")
-            response = {
-                "status_code": 500,
-                "status": "error",
-                "message": "Internal server error"
-            }
-            return Response(response)
+            print(f"Error: {e}")
+            return Response({"status_code": 500, "status": "error", "message": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     
 class ProductRetrieveUpdateDestroyAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     def get_object(self, id):
         return get_object_or_404(Product, id=id)
 
-    def get(self,request,id):
+    def get(self, request, id):
         try:
             instance = self.get_object(id)
-            if instance!= None:
-
-                serializer = ProductCreateSerializer(instance)
-                response = {
-                            "status_code": 200,
-                            "status": "success",
-                            "message":"Product Found Successfully!",
-                            "data": serializer.data
-                        }
-                return Response(response)
-            else:
-                response = {"status_code": 200,
-                            "status": "success",
-                            "messege": "Product dose not exist"}
-        except Exception as e:
-            print(f"error's {e}")
+            serializer = ProductCreateSerializer(instance)
             response = {
-                "status_code": 500,
+                "status_code": status.HTTP_200_OK,
+                "status": "success",
+                "message": "Product Found Successfully!",
+                "data": serializer.data
+            }
+            return Response(response)
+        except Exception as e:
+            print(f"Error: {e}")
+            response = {
+                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
                 "status": "error",
                 "message": "Internal server error"
             }
-            return Response(response)
+            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def put(self, request, id):
         try:
-            # Get the instance of the product
             instance = self.get_object(id)
-            
-            # Get the business profile of the current user
-            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted = False).first()
-            request.data["business_profile"] = business_profile.id
-            
-            # Update remaining quantity and status based on the request data
+            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+            request.data["business_profile"] = business_profile.id if business_profile else None
+
             remaining_quantity = request.data.get("total_quantity")
             request.data["remaining_quantity"] = remaining_quantity if remaining_quantity else 0
             request.data["status"] = 1 if remaining_quantity and remaining_quantity <= 0 else 3
-            
-            # Update the product instance with the new data
+
             serializer = ProductCreateSerializer(instance, data=request.data)
             if serializer.is_valid():
                 serializer.save()
@@ -155,179 +161,189 @@ class ProductRetrieveUpdateDestroyAPIView(APIView):
                 "message": "Internal server error"
             }
             return Response(response_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
     def delete(self, request, id):
         try:
             instance = self.get_object(id)
             instance.delete()
             response = {
-                    "status_code": 204,
-                    "status": "success",
-                    "message": "Product Deleted"
-                }
+                "status_code": status.HTTP_204_NO_CONTENT,
+                "status": "success",
+                "message": "Product Deleted"
+            }
             return Response(response)
         except Exception as e:
-            print(f"error's {e}")
+            print(f"Error: {e}")
             response = {
-                "status_code": 500,
+                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
                 "status": "error",
                 "message": "Internal server error"
             }
-            return Response(response)
+            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 
 class InventorySortingFilterAPI(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
+
     def post(self, request):
         try:
-            sub_queryset = None 
-            queryset = None 
-            data = None  
-            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
+            # Get the active business profile for the authenticated user
+            businessprofile = BusinessProfile.objects.filter(
+                user_profile=request.user, is_active=True, is_deleted=False
+            ).first()
 
-            if "sorting" in request.data:
-                sorting = request.data["sorting"]
-                if sorting == "sale price low to high":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).order_by('sales_price')
-                elif sorting == "sale price high to low":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).order_by('-sales_price')
-                elif sorting == "purchesh price low to high":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).order_by('purchase_price')
-                elif sorting == "purchesh price high to low":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).order_by('-purchase_price')
-                elif sorting == "product name A to Z":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).order_by('product_name')
-                elif sorting == "product name Z to A":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).order_by('-product_name')
-                else:
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).order_by("product_name")
-                queryset = sub_queryset
-                data = queryset
-            elif "Filter" in request.data:
-                Filter = request.data["Filter"]
-                if Filter == "red":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).filter(status = 1).order_by("product_name")
-                elif Filter == "yellow":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).filter(status = 2).order_by("product_name")
-                elif Filter == "green":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).filter(status = 3).order_by("product_name")
-                elif "category_name" in Filter:
-                    product_type_name = Filter["category_name"]
-                    sub_queryset = Product.objects.filter(business_profile=businessprofile).filter(product_type__category_name=product_type_name)
-                elif Filter == "top 50":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).annotate(total_quantity_sold=Sum('invoiceitem__quantity')).order_by('-total_quantity_sold')[:50]
-                elif Filter == "top 100":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).annotate(total_quantity_sold=Sum('invoiceitem__quantity')).order_by('-total_quantity_sold')[:100]
-                elif Filter == "top 150":
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).annotate(total_quantity_sold=Sum('invoiceitem__quantity')).order_by('-total_quantity_sold')[:150]
+            if not businessprofile:
+                return Response({
+                    "status_code": 400,
+                    "status": "error",
+                    "message": "Business profile not found"
+                }, status=400)
 
-                else: 
-                    sub_queryset = Product.objects.filter(business_profile = businessprofile).order_by("product_name")
-            
-                queryset = sub_queryset
-                data = queryset
-            else:
-                data = Product.objects.filter(business_profile = businessprofile).order_by("product_name")
+            queryset = Product.objects.filter(business_profile=businessprofile)
+            sorting = request.data.get("sorting")
+            filter_criteria = request.data.get("Filter")
 
-            product_data = data
-            total_length_before_pagination = product_data.count()
+            # Apply sorting
+            queryset = self.apply_sorting(queryset, sorting)
+
+            # Apply filtering
+            queryset = self.apply_filtering(queryset, filter_criteria)
+   
+            print(queryset)
+            total_length_before_pagination = queryset.count()
             paginator = self.pagination_class()
-            result_page = paginator.paginate_queryset(product_data, request, view=self)
+            result_page = paginator.paginate_queryset(queryset, request, view=self)
             total_pages = paginator.page.paginator.num_pages
-            serializer = ProductSerializer(result_page, many=True)
-            response = {
+            serializer = ProductCreateSerializer(result_page, many=True)
+
+            return Response({
                 "status_code": 200,
                 "status": "success",
-                "message": "Product found Successfully!",
+                "message": "Products found successfully!",
                 "data": serializer.data,
-                "total_length_before_pagination":total_length_before_pagination,
-                "total_pages":total_pages,
+                "total_length_before_pagination": total_length_before_pagination,
+                "total_pages": total_pages,
                 "next": paginator.get_next_link()
-            }
-            return Response(response)
+            })
+
         except Exception as e:
-            print(f"error's {e}")
-            response = {
+            print(f"error: {e}")
+            return Response({
                 "status_code": 500,
                 "status": "error",
-                "message": f"Internal server error {e}"
-            }
-            return Response(response)
+                "message": f"Internal server error: {e}"
+            }, status=500)
 
+    def apply_sorting(self, queryset, sorting):
+        if not sorting:
+            return queryset.order_by("product_name")
+        
+        sorting_map = {
+            "sale price low to high": 'batches__sales_price',
+            "sale price high to low": '-batches__sales_price',
+            "purchesh price low to high": 'batches__purchase_price',
+            "purchesh price high to low": '-batches__purchase_price',
+            "product name A to Z": 'product_name',
+            "product name Z to A": '-product_name'
+        }
+        
+        sort_field = sorting_map.get(sorting, "product_name")
+        return queryset.order_by(sort_field)
+
+    def apply_filtering(self, queryset, filter_criteria):
+        if not filter_criteria:
+            return queryset
+        
+        if filter_criteria == "red":
+            queryset = queryset.filter(batches__status=1)
+        elif filter_criteria == "yellow":
+            queryset = queryset.filter(batches__status=2)
+        elif filter_criteria == "green":
+            queryset = queryset.filter(batches__status=3)
+        elif isinstance(filter_criteria, dict) and "category_name" in filter_criteria:
+            queryset = queryset.filter(product_type__category_name=filter_criteria["category_name"])
+        elif filter_criteria in ["top 50", "top 100", "top 150"]:
+            top_n = int(filter_criteria.split(" ")[1])
+            queryset = queryset.annotate(total_quantity_sold=Sum('batches__total_quantity')).order_by('-total_quantity_sold')[:top_n]
+
+        return queryset
+        
 class InventorySearchAPI(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
 
-    def get(self,request):
+    def get(self, request):
         try:
-            businessprofile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-            search_query = request.GET.get('search')
-            if search_query !="":
-                products = Product.objects.filter(business_profile = businessprofile).filter(
+            businessprofile = BusinessProfile.objects.filter(
+                user_profile=request.user, is_active=True, is_deleted=False
+            ).first()
+
+            if not businessprofile:
+                return Response({
+                    "status_code": 400,
+                    "status": "error",
+                    "message": "Business profile not found"
+                }, status=400)
+
+            search_query = request.GET.get('search', '')
+
+            if search_query:
+                queryset = Product.objects.filter(business_profile=businessprofile).order_by("product_name").prefetch_related(
+                      Prefetch('batches', queryset=Batches.objects.filter(is_deleted=False))
+                 ).filter(
                     Q(product_name__icontains=search_query) |
                     Q(brand__icontains=search_query) |
-                    Q(product_type__category_name__icontains = search_query) 
-                    
-                        )
-                if products:
-                    product_data = products
-                    total_length_before_pagination = product_data.count()
-                    paginator = self.pagination_class()
-                    result_page = paginator.paginate_queryset(product_data, request, view=self)
-                    total_pages = paginator.page.paginator.num_pages
-                    serializer = ProductSerializer(result_page, many=True)
-                    response = {
-                        "status_code": 200,
-                        "status": "success",
-                        "message": "Product found Successfully!",
-                        "total_length_before_pagination":total_length_before_pagination,
-                        "total_pages":total_pages,
-                        "data": serializer.data,
-                        "next": paginator.get_next_link()
-                    }
-                    return Response(response)
+                    Q(product_type__category_name__icontains=search_query)
+                )
 
-                else:
-                    msg = f"No results for {search_query}.\n Try checking your spelling or use more general terms"
-                    print(msg)
-                    response = {
-                        "status_code": 200,
-                        "status": "success",
-                        "message": msg,
-                        "customers":[],
-                    }
-                    return Response(response)
-            else:
-                msg = f"No results for nonetype{search_query}.\n Try checking your spelling or use more general terms"
-                print(msg)
+                paginator = self.pagination_class()
+                result_page = paginator.paginate_queryset(queryset, request, view=self)
+                total_pages = paginator.page.paginator.num_pages
+                serializer = ProductCreateSerializer(result_page, many=True)
+        
                 response = {
+                     "status_code": 200,
+                     "status": "success",
+                     "message": "Products Found Successfully!",
+                     "total_pages": total_pages,
+                    #  "data": serializer.data,
+                     "next": paginator.get_next_link(),
+                 }
+                return Response(response)
+
+            else:
+                return Response({
                     "status_code": 200,
                     "status": "success",
-                    "message": msg,
-                }
-                return Response(response)
+                    "message": "No search query provided. Please enter a search term."
+                }, status=200)
+
         except Exception as e:
             print(f"error {e}")
-            response = {
+            return Response({
                 "status_code": 500,
                 "status": "error",
                 "message": "Internal Server Error."
-            }
-            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 class InventoryProductQuantityCheckAPI(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         try:
             product_id = request.GET.get('product_id')
+            batch_number = request.GET.get('batch_number')
             quantity = int(request.GET.get('quantity'))
-            product = Product.objects.filter(id = product_id).first()
-            if product:
-                if product.remaining_quantity<quantity:
+            # product = Product.objects.filter(id = product_id).first()
+            batch = Batches.objects.filter(batch_number=batch_number, product=product_id).first()
+            if batch:
+                if batch.remaining_quantity and batch.remaining_quantity < quantity:
                     response = {
                                 "status_code": 403,
                                 "status": "error",
                                 "message": "You don't have enough quantity available."
                             }
+                    return Response(response)
                 else:
                     response = {
                                 "status_code": 200,
@@ -353,41 +369,33 @@ class InventoryProductQuantityCheckAPI(APIView):
         
 class ProductAnalyticsAPI(APIView):
     permission_classes = [IsAuthenticated]
-    def get(self,request):
+    def get(self, request):
         try:
-            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-            if business_profile is not None:
+            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+            if business_profile:
                 productss = business_profile.product_set.all()
-                invoice = business_profile.invoice_set.all()           
                 invoice_item = InvoiceItem.objects.filter(product__in=productss)
-                total_reamining_quantity_product = 0 
-                if productss.exists():
-                    all_remaining_peoduct = productss.aggregate(total_quantity_all_product =Sum("remaining_quantity"))['remaining_quantity']
-                    total_reamining_quantity_product = all_remaining_peoduct
-                else:
-                    total_reamining_quantity_product=total_reamining_quantity_product
-                invoice_item_quantity_total = 0 
-                for i in invoice_item:
-                    if i.invoice in invoice:
-                        invoice_item_quantity_total+=i.quantity
+                
+                # Calculate total remaining quantity for all products
+                total_remaining_quantity_product = Batches.objects.filter(product__in=productss, is_deleted=False).aggregate(total_remaining=Sum('remaining_quantity'))['total_remaining'] or 0
+                
+                # Calculate total sale product quantity
+                total_sale_product_quantity = invoice_item.aggregate(total_sale_quantity=Sum('quantity'))['total_sale_quantity'] or 0
+
                 response = {
                     "status_code": 200,
                     "status": "success",
-                    "total_sale_product_quantity": invoice_item_quantity_total,
-                    "all_remaing_quantity":total_reamining_quantity_product
+                    "total_sale_product_quantity": total_sale_product_quantity,
+                    "all_remaining_quantity": total_remaining_quantity_product
                 }
             else:
                 response = {
                     "status_code": 200,
                     "status": "success",
-                    "total_sale_product_quantity": 0
+                    "total_sale_product_quantity": 0,
+                    "all_remaining_quantity": 0
                 }
             return Response(response)
         except Exception as e:
-            print(f"error {e}")
-            response = {
-                "status_code": 500,
-                "status": "error",
-                "message": "Internal Server Error."
-            }
-            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print(f"Error: {e}")
+            return Response({"status_code": 500, "status": "error", "message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
