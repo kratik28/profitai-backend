@@ -26,8 +26,8 @@ class ProductTypeSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]  # Adjust fields according to your ProductType model
 
 class ProductSerializer(serializers.ModelSerializer):
-    product_type = ProductTypeSerializer()
-    batches = BatchSerializer(many=True, read_only=True, source='batches')
+    # product_type = ProductTypeSerializer()
+    batches = BatchSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product

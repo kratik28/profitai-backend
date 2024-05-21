@@ -74,6 +74,7 @@ class ProductListCreateView(APIView):
 
                 batch_errors = []
                 for batch_data in batches_data:
+                    batch_data['business_profile'] = business_profile.id
                     batch_data['product'] = product.id
                     batch_serializer = BatchCreateSerializer(data=batch_data)
                     if batch_serializer.is_valid():
