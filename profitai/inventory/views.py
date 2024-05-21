@@ -252,7 +252,44 @@ class BatchCreateView(APIView):
         except Exception as e:
             print(f"Error: {e}")
             return Response({"status_code": 500, "status": "error", "message": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+       
+    @transaction.atomic
+    def delete(self, request):
+        try:
+            # Get the business profile of the current user
+            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+            if not business_profile:
+                return Response({"status_code": 400, "status": "error", "message": "Business profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get batch_id and product_id from request data
+            batch_id = request.data.get('batch_id')
+            product_id = request.data.get('product_id')
+
+            # Check if batch_id and product_id are provided
+            if not batch_id or not product_id:
+                return Response({"status_code": 400, "status": "error", "message": "Batch ID and Product ID are required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Find the batch to delete
+            batch = Batches.objects.filter(id=batch_id, product__id=product_id, business_profile=business_profile).first()
+            if not batch:
+                return Response({"status_code": 400, "status": "error", "message": "Batch not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Delete the batch
+            batch.delete()
+
+            # Response after successful deletion
+            response = {
+                "status_code": 200,
+                "status": "success",
+                "message": "Batch deleted successfully!"
+            }
+            return Response(response, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"Error: {e}")
+            return Response({"status_code": 500, "status": "error", "message": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+     
 class InventorySortingFilterAPI(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
