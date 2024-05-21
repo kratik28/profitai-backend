@@ -20,6 +20,12 @@ class BatchCreateSerializer(serializers.ModelSerializer):
         model = Batches
         fields = '__all__'
 
+class BatchUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Batches
+        fields = '__all__'
+        read_only_fields = ('product', 'business_profile')
+
 class ProductTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductType
