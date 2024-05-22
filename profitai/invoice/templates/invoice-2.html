@@ -26,7 +26,7 @@
         <table class="summary_table">
             <tr class="summary_tr">
                 <td class="left">Invoice No.</td>
-                <td class="right">{{invoice.0.invoice_counter}}</td>
+                <td class="right">{{invoice.invoice_counter}}</td>
             </tr>
             <tr class="summary_tr">
                 <td class="left">Date</td>
@@ -34,17 +34,17 @@
             </tr>
             <tr class="summary_tr">
                 <td class="left">Payment Option:</td>
-                <td class="right">{{invoice.0.payment_option}}</td>
+                <td class="right">{{invoice.payment_option}}</td>
             </tr>
         </table>
     </header>
     <div class="customer">
         <h4 class="inv-title-1">Invoice From</h4>
-        <h2 class="name">{{business_profile.0.business_name}}</h2>
+        <h2 class="name">{{business_profile.business_name}}</h2>
         <p class="invo-addr-1">
-            <a href="mailto:{{business_profile.0.email}}">{{business_profile.0.email}}</a><br/>
-            {{business_profile.0.address1}}<br/>
-            {{business_profile.0.city}} {{business_profile.0.zipcode}}, {{business_profile.0.state}}<br/>
+            <a href="mailto:{{business_profile.0.email}}">{{business_profile.email}}</a><br/>
+            {{business_profile.address1}}<br/>
+            {{business_profile.city}} {{business_profile.zipcode}}, {{business_profile.state}}<br/>
         </p>
     </div>
     <div class="company">
@@ -56,7 +56,7 @@
             {% if customer.address%}
             {{customer.address}}<br/>
             {% else %}
-            {{business_profile.0.address1}}, {{business_profile.0.city}} {{business_profile.0.zipcode}}<br/>
+            {{business_profile.0.address1}}, {{business_profile.city}} {{business_profile.zipcode}}<br/>
             {% endif %}
         </p>
     </div>
@@ -89,7 +89,7 @@
                     <td class="text-center">{{x.0.tax}}</td>
                     <td class="text-center">{{x.0.tax}}</td>
                     <td class="text-center">{{x.0.discount}}</td>
-                    <td class="text-end">{{x.1.price}}</td>
+                    <td class="text-end">{{x.0.price}}</td>
                 </tr>
                 {% endfor %}
             </table>         
@@ -104,38 +104,38 @@
             {% endif %}
             >
                 <td colspan="5" class="total" >SUBTOTAL</td>
-                <td class="total">{{invoice.0.sub_total}}</td>
+                <td class="total">{{invoice.sub_total}}</td>
             </tr>
             <tr>
                 <td colspan="5" class="sub-totel" >TAX</td>
-                <td class="sub-totel">{{invoice.0.tax}}</td>
+                <td class="sub-totel">{{invoice.tax}}</td>
             </tr>
             <tr class="tr1">
                 <td colspan="5" class="sub-totel" >DISCOUNT</td>
-                <td class="sub-totel">{{invoice.0.discount}}</td>
+                <td class="sub-totel">{{invoice.discount}}</td>
             </tr>
             {% if history%}
             <tr class="tr1">
                 <td class="text-history">Payment History:</td>
                 <td colspan="4" class="grand">GRAND TOTAL</td>
-                <td class="grand">{{invoice.0.grand_total}}</td>
+                <td class="grand">{{invoice.grand_total}}</td>
             </tr>
                 <td class="previous">Previously Paid: {{history}}</td>
                 <td colspan="4" class="sub-totel" >TOTAL PAID</td>
-                <td class="sub-totel">{{invoice.0.paid_amount}}</td>
+                <td class="sub-totel">{{invoice.paid_amount}}</td>
             </tr>
             {% else %}
             <tr class="tr1">
                 <td colspan="5" class="grand">GRAND TOTAL</td>
-                <td class="grand">{{invoice.0.grand_total}}</td>
+                <td class="grand">{{invoice.grand_total}}</td>
             </tr>
                 <td colspan="5" class="sub-totel" >TOTAL PAID</td>
-                <td class="sub-totel">{{invoice.0.paid_amount}}</td>
+                <td class="sub-totel">{{invoice.paid_amount}}</td>
             </tr>
             {% endif %}
             <tr class="tr1">
                 <td colspan="5" class="sub-totel" >TOTAL REMAINING</td>
-                <td class="sub-totel">{{invoice.0.remaining_total}}</td>
+                <td class="sub-totel">{{invoice.remaining_total}}</td>
             </tr>
             </tbody>
         </table>

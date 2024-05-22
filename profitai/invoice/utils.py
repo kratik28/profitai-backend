@@ -35,7 +35,6 @@ def invoice_pdf_create(request,cont,id):
     instance_to_update = Invoice.objects.filter(id = id).first()
     invoice_number = instance_to_update.invoice_counter
     file_name = f'invoice_{invoice_number}.pdf'
-    
     html_content = render_to_string('invoice-2.html', cont, request=request)
     Invoice_pdf = HTML(string=html_content, base_url=request.build_absolute_uri()).write_pdf(zoom=1.0)
     with default_storage.open(file_name, 'wb') as pdf_file:

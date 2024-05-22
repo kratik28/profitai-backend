@@ -71,7 +71,7 @@ class ProductListCreateView(APIView):
             product_serializer = ProductCreateSerializer(data=product_data)
             if product_serializer.is_valid():
                 product = product_serializer.save()
-
+                
                 batch_errors = []
                 for batch_data in batches_data:
                     batch_data['business_profile'] = business_profile.id
@@ -81,7 +81,7 @@ class ProductListCreateView(APIView):
                         batch_serializer.save()
                     else:
                         batch_errors.append(batch_serializer.errors)
-
+                
                 if batch_errors:
                     transaction.set_rollback(True)
                     return Response({"status_code": 400, "status": "error", "message": "Batch creation failed", "errors": batch_errors}, status=status.HTTP_400_BAD_REQUEST)
