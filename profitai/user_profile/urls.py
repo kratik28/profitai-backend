@@ -25,5 +25,6 @@ urlpatterns = [
     path("api/zipcode/<str:zipcode>",user_profile_view.get_address_from_zip_code , name="zipcode-api"),
     path("backend/gst-api/",user_profile_view.GSTVerificationAPIView.as_view(),name="gst-api"),
     path('backend/dashboard',user_profile_view.DashboardAPIView.as_view(),name='dashboard-api'),
-    path('backend/delete_account',user_profile_view.UserProfitDeleteAPIView.as_view(),name='user-delete-api')
+    path('backend/delete_account',user_profile_view.UserProfitDeleteAPIView.as_view(),name='user-delete-api'),
+    path('backend/global_search',user_profile_view.GlobalSearchAPIView.as_view(),name='global-search-api')
 ]

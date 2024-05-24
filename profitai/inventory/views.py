@@ -515,3 +515,59 @@ class ProductAnalyticsAPI(APIView):
         except Exception as e:
             print(f"Error: {e}")
             return Response({"status_code": 500, "status": "error", "message": "Internal Server Error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+class ProductRecommendListView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+    def get(self, request):
+        # Fetch the active business profile for the logged-in user
+        business_profile = BusinessProfile.objects.filter(
+            user_profile=request.user, 
+            is_active=True, 
+            is_deleted=False
+        ).first()
+
+        # If a business profile exists, fetch the products related to it
+        if business_profile:
+            # Annotate products with the total quantity remaining in their batches
+            queryset = Product.objects.filter(
+                business_profile=business_profile
+            ).annotate(
+                total_quantity_remaining=Sum('batches__remaining_quantity')
+            ).filter(
+                total_quantity_remaining__isnull=False,
+                batches__is_deleted=False
+            ).order_by('total_quantity_remaining')
+
+        else:
+            # If no business profile is found, return an empty queryset
+            queryset = Product.objects.none()
+
+        # Paginate the queryset
+        paginator = self.pagination_class()
+        result_page = paginator.paginate_queryset(queryset, request, view=self)
+        total_pages = paginator.page.paginator.num_pages
+
+        # Serialize the paginated queryset
+        serializer = ProductSerializer(result_page, many=True)
+
+        # Create the response based on the 'type' query parameter
+        if request.query_params.get('type') == "all":
+            response = {
+                "status_code": 200,
+                "status": "success",
+                "message": "All Products Found Successfully!",
+                "data": ProductSerializer(queryset, many=True).data,
+            }
+        else:
+            response = {
+                "status_code": 200,
+                "status": "success",
+                "message": "Products Found Successfully!",
+                "total_pages": total_pages,
+                "data": serializer.data,
+                "next": paginator.get_next_link(),
+            }
+
+        return Response(response)

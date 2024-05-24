@@ -9,5 +9,6 @@ urlpatterns = [
     path("api/product/sort_filter",inventory_view.InventorySortingFilterAPI.as_view()),
     path("api/product/search",inventory_view.InventorySearchAPI.as_view()),
     path("api/product/quantity/check",inventory_view.InventoryProductQuantityCheckAPI.as_view()),
-    path("api/product/analitycs",inventory_view.ProductAnalyticsAPI.as_view())
+    path("api/product/analitycs",inventory_view.ProductAnalyticsAPI.as_view()),
+    path("api/product/recommend_list",inventory_view.ProductRecommendListView.as_view())
 ]

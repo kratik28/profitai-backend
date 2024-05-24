@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.http import Http404, JsonResponse
 from invoice.models import Invoice,InvoiceItem
 from inventory.models import Product, Batches
+from inventory.serializers import ProductCreateSerializer
 from invoice.serializers import InvoiceSerializer
 from .serializers import TopSellingProductSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
@@ -1425,3 +1426,59 @@ class UserProfitDeleteAPIView(APIView):
             }
         
         return Response(response_data, status=response_data["status_code"])
+    
+
+class GlobalSearchAPIView(APIView):
+    def get(self, request):
+        query = request.query_params.get('query', '')
+
+        if not query:
+            return Response({
+                "status_code": 400,
+                "status": "failure",
+                "message": "Query parameter is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get the active business profile for the current user
+        business_profile = BusinessProfile.objects.filter(
+            user_profile=request.user, 
+            is_active=True, 
+            is_deleted=False
+        ).first()
+
+        if not business_profile:
+            return Response({
+                "status_code": 404,
+                "status": "failure",
+                "message": "No active business profile found for the user."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Search Products by name or brand within the business profile
+        products = Product.objects.filter(
+            Q(product_name__icontains=query) | Q(brand__icontains=query),
+            business_profile=business_profile
+        )
+        product_serializer = ProductCreateSerializer(products, many=True)
+
+        # Search Customers (including Vendors) by name or phone number within the business profile
+        customers = Customer.objects.filter(
+            Q(customer_name__icontains=query) | Q(phone_number__icontains=query),
+            business_profile=business_profile
+        )
+
+        # Separate Customers and Vendors
+        customers_data = CustomerSerializer(customers.filter(is_purchase=False), many=True).data
+        vendors_data = CustomerSerializer(customers.filter(is_purchase=True), many=True).data
+
+        response = {
+            "status_code": 200,
+            "status": "success",
+            "message": "Search results retrieved successfully.",
+            "data": {
+                "products": product_serializer.data,
+                "customers": customers_data,
+                "vendors": vendors_data
+            }
+        }
+
+        return Response(response)
