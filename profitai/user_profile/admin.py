@@ -3,7 +3,7 @@ from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import User, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.sessions.models import Session
-from user_profile.models import UserProfile, BusinessProfile, Customer, UserProfileOTP
+from user_profile.models import UserProfile, BusinessProfile, Customer, UserProfileOTP, Vendor
 
 @admin.register(LogEntry)
 class LogEntryAdmin(admin.ModelAdmin):
@@ -32,9 +32,12 @@ class BusinessProfileData(admin.ModelAdmin):
     list_display = ['user_profile','business_number','business_name','business_type','gst_number','email']
 class CustomerData(admin.ModelAdmin):
     list_display = ['business_profile','customer_name','phone_number','email']
+class VendorData(admin.ModelAdmin):
+    list_display = ['business_profile','vendor_name','phone_number','email']
 class UserProfileOTPData(admin.ModelAdmin):
     list_display = ['user_profile','phone_number','otp','is_verified']
 admin.site.register(UserProfile, UserProfileAdmin)
 admin.site.register(BusinessProfile,BusinessProfileData)
 admin.site.register(Customer,CustomerData)
+admin.site.register(Vendor,VendorData)
 admin.site.register(UserProfileOTP,UserProfileOTPData)

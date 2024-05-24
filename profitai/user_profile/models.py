@@ -20,17 +20,6 @@ class UserProfile(AbstractUser):
         else:
             return False
     
-    # REQUIRED_FIELDS = []
-    # USERNAME_FIELD = 'username'
-    
-    # @property
-    # def is_anonymous(self):
-    #     return False
-
-    # @property
-    # def is_authenticated(self):
-    #     return True
-    
     def __str__(self):
         return f"phone_number: {self.phone_number}"
     
@@ -75,7 +64,6 @@ class Customer(models.Model):
     phone_number = models.CharField(max_length=20, null=False, default=None, blank=False)
     gst_number = models.CharField(max_length=50, null=True, default=None, blank=True)
     favourite = models.BooleanField(default=False)
-    is_purchase = models.BooleanField(default=False)
     email = models.EmailField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -83,4 +71,20 @@ class Customer(models.Model):
 
     def __str__(self):
         return f"customer_name: {self.customer_name}"
+
+class Vendor(models.Model):
+    business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=False)
+    vendor_name = models.CharField(max_length=50, null=False, default=None, blank=False)
+    address = models.CharField(max_length=100, null=False, default=None, blank=False)
+    zipcode = models.CharField(max_length=100, null=False, default=None, blank=False)
+    phone_number = models.CharField(max_length=20, null=False, default=None, blank=False)
+    gst_number = models.CharField(max_length=50, null=True, default=None, blank=True)
+    favourite = models.BooleanField(default=False)
+    email = models.EmailField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"vendor_name: {self.vendor_name}"
     

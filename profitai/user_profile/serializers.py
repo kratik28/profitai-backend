@@ -2,7 +2,7 @@ from rest_framework import serializers
 from invoice.models import Invoice
 from inventory.models import Product
 from master_menu.serializers import BusinessTypeSerializer
-from user_profile.models import UserProfile, BusinessProfile,Customer
+from user_profile.models import UserProfile, BusinessProfile,Customer, Vendor
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -59,6 +59,19 @@ class CustomerSerializer(serializers.ModelSerializer):
         for field_name in excluded_fields:
             self.fields[field_name].required = False
 
+class VendorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vendor
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Exclude certain fields from being required during update
+        excluded_fields = ['business_profile']  # Add field names to exclude here
+        for field_name in excluded_fields:
+            self.fields[field_name].required = False
+
 class InvoiceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
@@ -93,7 +106,12 @@ class CustomerListSerializer(serializers.ModelSerializer):
 class CustomerPdfSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ["id","customer_name","address","zipcode","phone_number","email","gst_number","is_purchase","favourite"]
+        fields = ["id","customer_name","address","zipcode","phone_number","email","gst_number","favourite"]
+
+class VendorPdfSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vendor
+        fields = ["id","vendor_name","address","zipcode","phone_number","email","gst_number","favourite"]
 
 
 class CustomerallSerializer(serializers.ModelSerializer):
@@ -104,7 +122,7 @@ class CustomerallSerializer(serializers.ModelSerializer):
     all_paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
     class Meta:
         model = Customer
-        fields = ['id', "customer_name","address" ,"zipcode", "is_purchase" ,"phone_number","gst_number" ,"favourite", "email","last_invoice_grand_total","last_invoice_status","all_remaining","all_paid_amount","all_grand_total"]
+        fields = ['id', "customer_name","address" ,"zipcode" ,"phone_number","gst_number" ,"favourite", "email","last_invoice_grand_total","last_invoice_status","all_remaining","all_paid_amount","all_grand_total"]
     
 class CustomerSortSerializer(serializers.ModelSerializer):
     last_invoice_grand_total = serializers.DecimalField(max_digits=10, decimal_places=2)

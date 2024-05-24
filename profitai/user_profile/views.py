@@ -8,7 +8,7 @@ from .serializers import TopSellingProductSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
 from user_profile.models import UserProfile, UserProfileOTP, BusinessProfile, Customer
 from user_profile.pagination import InfiniteScrollPagination
-from user_profile.serializers import  CustomerListSerializer, CustomerSortSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, UserProfileSerializer
+from user_profile.serializers import  CustomerListSerializer, CustomerSortSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, VendorSerializer, UserProfileSerializer
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -18,7 +18,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 import random
 import datetime
-from user_profile.models import UserProfile
+from user_profile.models import UserProfile, Vendor
 from master_menu.models import BusinessType, Industry
 from rest_framework_simplejwt.tokens import RefreshToken
 from master_menu.models import BusinessType
@@ -476,7 +476,7 @@ class VendorListAPIView(APIView):
         search = self.request.GET.get('search', None)
         favourite = self.request.GET.get('favourite', None)
         businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True, is_deleted = False).first()
-        vendor_queryset = Customer.objects.filter(business_profile=businessprofile, is_purchase=True).distinct().order_by('-id')
+        vendor_queryset = Vendor.objects.filter(business_profile=businessprofile).distinct().order_by('-id')
         if search:
                   vendor_queryset = vendor_queryset.filter( 
                       Q(customer_name__icontains=search)|
@@ -518,7 +518,7 @@ class CustomerListCreateAPIView(APIView):
     def get(self, request):
       
         businessprofile=BusinessProfile.objects.filter(user_profile_id = self.request.user.id, is_active= True, is_deleted = False).first()
-        cus_queryset = Customer.objects.filter(business_profile=businessprofile, is_purchase=False).distinct().order_by('-id')
+        cus_queryset = Customer.objects.filter(business_profile=businessprofile).distinct().order_by('-id')
         name = self.request.GET.get('name', None)
         favourite = self.request.GET.get('favourite', None)
         sales = self.request.GET.get('sales', None)
@@ -788,6 +788,8 @@ class UserProfileUpdateview(APIView):
         if not queryset.exists():
             raise Http404
         return queryset.first()
+    
+    
 class CustomerfavouriteFrequentTopAPI(APIView):
     permission_classes = [IsAuthenticated]
     def get(self,request):
@@ -1010,7 +1012,7 @@ class CustomerSortAPIView(APIView):
             # sorted_customers = None
 
             queryset = Customer.objects.filter(business_profile=businessprofile)
-            queryset = Customer.objects.filter(invoice__business_profile=businessprofile, is_purchase=False).distinct().order_by('-id')
+            queryset = Customer.objects.filter(invoice__business_profile=businessprofile).distinct().order_by('-id')
             paginator = self.pagination_class()
             sorted_customers= queryset
             # customers_with_remaining_total = queryset.annotate(remaining_total=Sum('invoice__remaining_total'))
@@ -1461,14 +1463,19 @@ class GlobalSearchAPIView(APIView):
         product_serializer = ProductCreateSerializer(products, many=True)
 
         # Search Customers (including Vendors) by name or phone number within the business profile
-        customers = Customer.objects.filter(
+        customers_data = CustomerSerializer(Customer.objects.filter(
             Q(customer_name__icontains=query) | Q(phone_number__icontains=query),
             business_profile=business_profile
-        )
+        )).data
+        
+        vendors_data = VendorSerializer(Vendor.objects.filter(
+            Q(customer_name__icontains=query) | Q(phone_number__icontains=query),
+            business_profile=business_profile
+        )).data 
 
-        # Separate Customers and Vendors
-        customers_data = CustomerSerializer(customers.filter(is_purchase=False), many=True).data
-        vendors_data = CustomerSerializer(customers.filter(is_purchase=True), many=True).data
+        # # Separate Customers and Vendors
+        # customers_data = CustomerSerializer(customers.filter(is_purchase=False), many=True).data
+        # vendors_data = CustomerSerializer(customers.filter(is_purchase=True), many=True).data
 
         response = {
             "status_code": 200,

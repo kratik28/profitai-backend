@@ -8,7 +8,7 @@ from inventory.serializers import ProductSerializer
 from invoice.serializers import InvoiceCreateSerializer, InvoiceSerializer,InvoiceItemSerializer, ProductdataSerializer
 from invoice.models import Invoice,InvoiceItem
 from rest_framework.permissions import IsAuthenticated
-from user_profile.models import BusinessProfile, Customer
+from user_profile.models import BusinessProfile, Customer, Vendor
 from datetime import datetime
 from django.db.models import Q, Max
 from user_profile.pagination import InfiniteScrollPagination
@@ -17,6 +17,7 @@ from django.db.models import Sum
 from django.db.models.functions import TruncDay
 from django.utils import timezone
 import datetime
+from rest_framework.exceptions import ValidationError
 
 class InvoiceCustomerListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -26,6 +27,37 @@ class InvoiceCustomerListView(APIView):
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
         invoice_item_data = Invoice.objects.filter(business_profile=business_profile,customer=customerId)
         queryset = invoice_item_data.filter(customer_id = customerId).order_by('-id')
+        paginator = self.pagination_class()
+        result_page = paginator.paginate_queryset(queryset, request, view=self)
+        total_length_before_pagination = queryset.count()
+        total_pages = paginator.page.paginator.num_pages
+        current_domain = request.build_absolute_uri('/media').rstrip('/')
+        serializer = InvoiceCreateSerializer(result_page,context={"request":request,'current_domain': current_domain},many= True)
+        if request.query_params.get("type")=="all":
+            response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message":"Invoice Found Successfully!",
+                        "data": InvoiceCreateSerializer(queryset,context={'current_domain': current_domain},many= True).data,}
+        else:
+            response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message":"Invoice Found Successfully!",
+                        "data": serializer.data,
+                        "total_pages":total_pages,
+                        "total_length_before_pagination":total_length_before_pagination,
+                        "next": paginator.get_next_link(),  # Include the next page link
+            }
+        return Response(response)   
+    
+class InvoiceVendorListView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+    def get(self , request):
+        vendorId = request.GET.get("vendor_id")
+        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
+        queryset = Invoice.objects.filter(business_profile=business_profile, vendor=vendorId).order_by('-id')
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(queryset, request, view=self)
         total_length_before_pagination = queryset.count()
@@ -335,43 +367,50 @@ class InvoiceOrderAPI(APIView):
     def post(self, request):
         try:
             with transaction.atomic():
+                data = request.data
+
                 # Extract data from request
-                product_quantity = request.data.pop("product_and_quantity")
-                customer_id = request.data.get("customer")
-                payment_type = request.data.get("payment_type")
-                payment_option = request.data.get("payment_option")
-                paid_amount = request.data.get("paid_amount", 0.00)
-                tax = request.data.get("tax", 0.00)
-                discount = request.data.get("discount", 0.00)
-                grand_total = request.data.get("grand_total", 0.00)
-                remaining_total = request.data.get("remaining_total", grand_total)
-                sub_total = request.data.get("sub_total", 0.00)
+                product_quantity = data.pop("product_and_quantity", [])
+                customer_id = data.get("customer")
+                vendor_id = data.get("vendor")
+                payment_type = data.get("payment_type")
+                payment_option = data.get("payment_option")
+                paid_amount = data.get("paid_amount", 0.00)
+                tax = data.get("tax", 0.00)
+                discount = data.get("discount", 0.00)
+                grand_total = data.get("grand_total", 0.00)
+                remaining_total = data.get("remaining_total", grand_total)
+                sub_total = data.get("sub_total", 0.00)
+
+                # Ensure at least one of customer_id or vendor_id is provided
+                if not customer_id and not vendor_id:
+                    return Response({"status_code": 400, "status": "error", "message": "Either customer_id or vendor_id must be provided"})
 
                 # Validate payment type
-                valid_payment_types = ["pay_letter", "remain_payment", "paid"]
+                valid_payment_types = ["pay_later", "remain_payment", "paid"]
                 if payment_type not in valid_payment_types:
-                    return Response({"status_code": 200, "status": "error", "message": "Please select a valid payment type"})
-                
-                product_ids = []
-                for item in product_quantity:
-                    batch = Batches.objects.select_for_update().filter(id=item["batchId"]).first()
-                    if not batch:
-                        return Response({"status_code": 200, "status": "error", "message": f"Batch with id {item['batchId']} not found"})
-                    if batch.remaining_quantity and batch.remaining_quantity <= 0:
-                        return Response({"status_code": 200, "status": "error", "message": "Product out of stock. Please update your inventory."})
-                    if item["quantity"] > batch.remaining_quantity:
-                        return Response({"status_code": 200, "status": "error", "message": "Insufficient stock. You don't have enough quantity for the requested product."})
-                    product_ids.append({"batchId": batch.id, "quantity": item["quantity"]})
-               
-                # Get business profile and customer
+                    return Response({"status_code": 400, "status": "error", "message": "Please select a valid payment type"})
+
+                # Validate and prepare product IDs
+                product_ids = self.validate_and_prepare_product_ids(product_quantity)
+
+                # Get business profile
                 business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
-                customer = get_object_or_404(Customer, id=customer_id)
-                is_purchase = request.data.get("is_purchase", customer.is_purchase)
-    
+                if not business_profile:
+                    return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
+
+                # Get customer or vendor
+                customer = get_object_or_404(Customer, id=customer_id) if customer_id else None
+                vendor = get_object_or_404(Vendor, id=vendor_id) if vendor_id else None
+
+                # Determine if it's a purchase
+                is_purchase = bool(vendor_id)
+
                 # Create invoice
                 invoice = Invoice.objects.create(
                     business_profile=business_profile,
                     customer=customer,
+                    vendor=vendor,
                     is_purchase=is_purchase,
                     payment_type=payment_type,
                     payment_option=payment_option,
@@ -384,40 +423,16 @@ class InvoiceOrderAPI(APIView):
                     remaining_total=remaining_total,
                     order_date_time=timezone.now()
                 )
-    
-                # Create invoice items and update batch quantities
-                invoice_item_data = []
-                product_data = []
-                for item in product_ids:
-                    batch = Batches.objects.select_for_update().get(id=item["batchId"])
-                    product = batch.product
-                    price = float(batch.sales_price) * item["quantity"]
 
-                    invoice_item_data.append(InvoiceItem(
-                        invoice=invoice,
-                        product=product,
-                        price=price,
-                        quantity=item["quantity"],
-                        is_deleted=False,
-                        invoice_id=invoice.id,
-                        product_id=product.id,
-                        batch=batch
-                    ))
-                    batch.remaining_quantity -= item["quantity"]
-                    
-                    batch.save()
-                    set_remaining_product_quantity(batch)
-                    
-                # Bulk create invoice items
-                if invoice_item_data:
-                    InvoiceItem.objects.bulk_create(invoice_item_data)
+                # Create invoice items and update batch quantities
+                self.create_invoice_items(invoice, product_ids)
 
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
-                invoice_item = InvoiceItemSerializer(invoice_item_data, many=True).data
+                invoice_item_data = InvoiceItemSerializer(invoice.invoiceitem_set.all(), many=True).data
                 invoice_data = InvoiceCreateSerializer(invoice).data
-                id = range(1, len(product_data) + 1)
-                content = list(zip(product_data, invoice_item, id))
+                id_range = range(1, len(product_quantity) + 1)
+                content = list(zip(product_quantity, invoice_item_data, id_range))
                 
                 data = {
                     "invoice": invoice_data,
@@ -425,7 +440,7 @@ class InvoiceOrderAPI(APIView):
                     "order_date": timezone.now(),
                     "business_profile": business_profile,
                     "customer": customer,
-                    "flage": page_break(id),
+                    "flage": page_break(id_range),
                 }
 
                 # Generate invoice PDF
@@ -441,6 +456,9 @@ class InvoiceOrderAPI(APIView):
                 }
                 return Response(response)
 
+        except ValidationError as e:
+            return Response({"status_code": 400, "status": "error", "message": str(e)})
+
         except Exception as e:
             print(f"Error: {e}")
             response = {
@@ -449,7 +467,44 @@ class InvoiceOrderAPI(APIView):
                 "message": f"Internal server error: {e}"
             }
             return Response(response)
+
+    def validate_and_prepare_product_ids(self, product_quantity):
+        product_ids = []
+        for item in product_quantity:
+            batch = Batches.objects.select_for_update().filter(id=item["batchId"]).first()
+            if not batch:
+                raise ValidationError(f"Batch with id {item['batchId']} not found")
+            if batch.remaining_quantity <= 0:
+                raise ValidationError("Product out of stock. Please update your inventory.")
+            if item["quantity"] > batch.remaining_quantity:
+                raise ValidationError("Insufficient stock. You don't have enough quantity for the requested product.")
+            product_ids.append({"batchId": batch.id, "quantity": item["quantity"]})
+        return product_ids
+
+    def create_invoice_items(self, invoice, product_ids):
+        invoice_item_data = []
+        for item in product_ids:
+            batch = Batches.objects.select_for_update().get(id=item["batchId"])
+            product = batch.product
+            price = float(batch.sales_price) * item["quantity"]
+
+            invoice_item_data.append(InvoiceItem(
+                invoice=invoice,
+                product=product,
+                price=price,
+                quantity=item["quantity"],
+                is_deleted=False,
+                invoice_id=invoice.id,
+                product_id=product.id,
+                batch=batch
+            ))
+            batch.remaining_quantity -= item["quantity"]
+            batch.save()
+            set_remaining_product_quantity(batch)
         
+        if invoice_item_data:
+            InvoiceItem.objects.bulk_create(invoice_item_data)
+            
     def put(self, request):
         try:
             with transaction.atomic():
@@ -459,6 +514,7 @@ class InvoiceOrderAPI(APIView):
                 # Extract data from request
                 product_quantity = request.data.pop("product_and_quantity", [])
                 customer_id = request.data.get("customer")
+                vendor_id = request.data.get("vendor")
                 payment_type = request.data.get("payment_type")
                 payment_option = request.data.get("payment_option")
                 paid_amount = request.data.get("paid_amount", 0.00)
@@ -487,12 +543,17 @@ class InvoiceOrderAPI(APIView):
 
                 # Get business profile and customer
                 business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
-                customer = get_object_or_404(Customer, id=customer_id)
-                is_purchase = request.data.get("is_purchase", customer.is_purchase)
+                 # Get customer or vendor
+                customer = get_object_or_404(Customer, id=customer_id) if customer_id else None
+                vendor = get_object_or_404(Vendor, id=vendor_id) if vendor_id else None
+                
+                 # Determine if it's a purchase
+                is_purchase = bool(vendor_id)
 
                 # Update invoice fields
                 invoice.business_profile = business_profile
                 invoice.customer = customer
+                invoice.vendor = vendor
                 invoice.is_purchase = is_purchase
                 invoice.payment_type = payment_type
                 invoice.payment_option = payment_option
@@ -514,66 +575,43 @@ class InvoiceOrderAPI(APIView):
                 existing_invoice_items.delete()
 
                 # Create new invoice items and update batch quantities
-                invoice_item_data = []
-                for item in product_ids:
-                    batch = next(b for b in batches_to_update if b.id == item["batchId"])
-                    product = batch.product
-                    price = float(batch.sales_price) * item["quantity"]
-                    invoice_item_data.append(InvoiceItem(
-                        invoice=invoice,
-                        product=product,
-                        price=price,
-                        quantity=item["quantity"],
-                        is_deleted=False,
-                        invoice_id=invoice.id,
-                        product_id=product.id,
-                        batch=batch
-                    ))
-                    batch.remaining_quantity -= item["quantity"]
-                    batch.save()
-                    set_remaining_product_quantity(batch)
-
-                # Bulk create invoice items
-                if invoice_item_data:
-                    InvoiceItem.objects.bulk_create(invoice_item_data)
+                self.create_invoice_items(invoice, product_ids)
 
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
-                invoice_item = InvoiceItemSerializer(invoice_item_data, many=True).data
+                invoice_item_data = InvoiceItemSerializer(invoice.invoiceitem_set.all(), many=True).data
                 invoice_data = InvoiceCreateSerializer(invoice).data
-                id_list = range(1, len(product_ids) + 1)
+                id_range = range(1, len(product_quantity) + 1)
                 content = []
-                for item, invoice_item_data, id_number in zip(product_ids, invoice_item, id_list):
-                 
+                for item, invoice_item, id_number in zip(product_quantity, invoice_item_data, id_range):
                     batch = Batches.objects.get(id=item['batchId'])
                     product = batch.product
                     product_info = {
                         "product_name": product.product_name,
                         "hsn_number": batch.hsn_number,
                         "batch_number": batch.batch_number,
-                        "expiry_date": batch.expiry_date.strftime('%Y-%m-%d'),  # Formatting expiry date as per your template
-                        "quantity": invoice_item_data['quantity'],
+                        "expiry_date": batch.expiry_date.strftime('%Y-%m-%d'),
+                        "quantity": invoice_item['quantity'],
                         "mrp_price": batch.mrp_price,
                         "sales_price": batch.sales_price,
                         "tax": invoice.tax,
                         "discount": invoice.discount,
-                        "price": invoice_item_data['price']
+                        "price": invoice_item['price']
                     }
                     content.append((product_info, id_number))
-                    
-                
+
                 data = {
                     "invoice": invoice_data,
                     "content": content,
                     "order_date": timezone.now(),
                     "business_profile": business_profile,
                     "customer": customer,
-                    "flage": page_break(id_list),
+                    "flage": page_break(id_range),
                 }
 
-                
                 # Generate invoice PDF
-                invoices = invoice_pdf_create(request, data, invoice.id)
+                invoice_id = invoice.id
+                invoices = invoice_pdf_create(request, data, invoice_id)
 
                 # Prepare response
                 response = {
@@ -584,13 +622,17 @@ class InvoiceOrderAPI(APIView):
                 }
                 return Response(response)
 
+        except ValidationError as e:
+            return Response({"status_code": 400, "status": "error", "message": str(e)})
+
         except Exception as e:
             print(f"Error: {e}")
-            return Response({
+            response = {
                 "status_code": 500,
                 "status": "error",
                 "message": f"Internal server error: {e}"
-            })
+            }
+            return Response(response)
         
 class InvoiceSearch(APIView):
     permission_classes = [IsAuthenticated]

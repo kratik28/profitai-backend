@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from inventory.models import Product
 from .models import Invoice, InvoiceItem
-from user_profile.serializers import CustomerPdfSerializer
+from user_profile.serializers import CustomerPdfSerializer, VendorPdfSerializer
 
 class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,9 +17,10 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
 
 class InvoiceCreateSerializer(serializers.ModelSerializer):
     customer = CustomerPdfSerializer()
+    vendor = VendorPdfSerializer()
     class Meta:
         model = Invoice
-        fields = [ "id","invoice_counter","is_purchase", "order_date_time","status","grand_total","sub_total","paid_amount","remaining_total","tax","discount","payment_type",'payment_option',"Invoice","description","is_deleted","created_at","updated_at","customer"]
+        fields = [ "id","invoice_counter","is_purchase", "order_date_time","status","grand_total","sub_total","paid_amount","remaining_total","tax","discount","payment_type",'payment_option',"Invoice","description","is_deleted","created_at","updated_at","customer", "vendor"]
 
     Invoice = serializers.SerializerMethodField()
 

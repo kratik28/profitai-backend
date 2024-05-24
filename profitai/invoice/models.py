@@ -1,12 +1,13 @@
 import datetime
 import uuid
 from django.db import models
-from user_profile.models import BusinessProfile, Customer
+from user_profile.models import BusinessProfile, Customer, Vendor
 from inventory.models import Product, Batches
 
 class Invoice(models.Model):
     business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=False)
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=False)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True)
+    vendor= models.ForeignKey(Vendor, on_delete=models.CASCADE, null=True)
     invoice_counter = models.CharField(max_length=30, default=None, null=True, blank=True)
     order_date_time = models.DateTimeField(default=None, null=True, blank=True)
     status = models.IntegerField(default=None, blank=True, null=True)
