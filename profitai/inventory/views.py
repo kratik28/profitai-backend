@@ -5,7 +5,7 @@ from master_menu.models import ProductType
 from rest_framework.views import APIView
 from user_profile.models import BusinessProfile
 from user_profile.pagination import InfiniteScrollPagination
-from .serializers import ProductCreateSerializer, ProductSerializer, BatchCreateSerializer, BatchUpdateSerializer
+from .serializers import ProductCreateSerializer, ProductSerializer, BatchCreateSerializer, BatchUpdateSerializer, BatchSerializer
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q, Prefetch
@@ -205,12 +205,14 @@ class BatchCreateView(APIView):
                 return Response({"status_code": 400, "status": "error", "message": "Batches data is required"}, status=status.HTTP_400_BAD_REQUEST)
             
             batch_errors = []
+            created_batches = []
             for batch_data in batches_data:
                 batch_data['business_profile'] = business_profile.id
                 batch_data['product'] = product.id
                 batch_serializer = BatchCreateSerializer(data=batch_data)
                 if batch_serializer.is_valid():
-                    batch_serializer.save()
+                    batch = batch_serializer.save()
+                    created_batches.append(batch)
                 else:
                     batch_errors.append(batch_serializer.errors)
 
@@ -218,7 +220,11 @@ class BatchCreateView(APIView):
                 transaction.set_rollback(True)
                 return Response({"status_code": 400, "status": "error", "message": "Batch creation failed", "errors": batch_errors}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response({"status_code": 200, "status": "success", "message": "Batches created successfully!"}, status=status.HTTP_200_OK)
+            return Response({"status_code": 200,
+                             "status": "success", 
+                             "message": "Batches created successfully!", 
+                             "data": BatchSerializer(created_batches, many=True).data,
+                            }, status=status.HTTP_200_OK)
         except Exception as e:
             print(f"Error: {e}")
             return Response({"status_code": 500, "status": "error", "message": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

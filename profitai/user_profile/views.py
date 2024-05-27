@@ -1595,21 +1595,17 @@ class GlobalSearchAPIView(APIView):
             business_profile=business_profile
         )
         product_serializer = ProductCreateSerializer(products, many=True)
-
-        # Search Customers (including Vendors) by name or phone number within the business profile
-        customers_data = CustomerSerializer(Customer.objects.filter(
-            Q(customer_name__icontains=query) | Q(phone_number__icontains=query),
-            business_profile=business_profile
-        )).data
         
-        vendors_data = VendorSerializer(Vendor.objects.filter(
-            Q(customer_name__icontains=query) | Q(phone_number__icontains=query),
-            business_profile=business_profile
-        )).data 
-
-        # # Separate Customers and Vendors
-        # customers_data = CustomerSerializer(customers.filter(is_purchase=False), many=True).data
-        # vendors_data = CustomerSerializer(customers.filter(is_purchase=True), many=True).data
+        # Search Customers (including Vendors) by name or phone number within the business profile
+        customers_data = Customer.objects.filter(
+           Q(customer_name__icontains=query) | Q(phone_number__icontains=query),
+           business_profile=business_profile
+        )
+        
+        vendors_data = Vendor.objects.filter(
+           Q(vendor_name__icontains=query) | Q(phone_number__icontains=query),
+           business_profile=business_profile
+        )
 
         response = {
             "status_code": 200,
@@ -1617,8 +1613,8 @@ class GlobalSearchAPIView(APIView):
             "message": "Search results retrieved successfully.",
             "data": {
                 "products": product_serializer.data,
-                "customers": customers_data,
-                "vendors": vendors_data
+                "customers": CustomerSerializer(customers_data, many=True).data,
+                "vendors": VendorSerializer(vendors_data, many=True).data
             }
         }
 
