@@ -423,7 +423,7 @@ class InventorySearchAPI(APIView):
                      "status": "success",
                      "message": "Products Found Successfully!",
                      "total_pages": total_pages,
-                    #  "data": serializer.data,
+                     "data": serializer.data,
                      "next": paginator.get_next_link(),
                  }
                 return Response(response)

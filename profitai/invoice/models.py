@@ -42,7 +42,10 @@ class Invoice(models.Model):
 
         super(Invoice, self).save(*args, **kwargs)
     def __str__(self) -> str:
-        return f"Invoice customer {self.customer.customer_name} id {self.invoice_counter}"
+        customer_name = self.customer.customer_name if self.customer else "No customer"
+        vendor_name = self.vendor.vendor_name if self.vendor else "No vendor"
+        return f"Invoice customer {customer_name} or vendor {vendor_name}, id {self.invoice_counter}"
+
         
         
 class InvoiceItem(models.Model):
