@@ -475,7 +475,7 @@ class VendorListAPIView(APIView):
         name = self.request.GET.get('name', None)
         search = self.request.GET.get('search', None)
         favourite = self.request.GET.get('favourite', None)
-        businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True, is_deleted = False).first()
+        businessprofile = BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True, is_deleted = False).first()
         vendor_queryset = Vendor.objects.filter(business_profile=businessprofile).distinct().order_by('-id')
         if search:
                   vendor_queryset = vendor_queryset.filter( 
@@ -507,8 +507,113 @@ class VendorListAPIView(APIView):
             "next": paginator.get_next_link(),  # Include the next page link
         }
         return Response(response)
-    
 
+    def post(self, request):
+        try:
+            phone_number = request.data["phone_number"]
+            queryset = Vendor.objects.filter(phone_number=phone_number)
+            if queryset.exists():
+                data = queryset.first()
+                serializer = VendorSerializer(data)
+                response={
+                    "status_code": 200,
+                    "status": "success",
+                    "message":"vendor phone number allready exist",
+                    "data" : serializer.data
+                }
+                return Response(response)
+            else:
+                
+                businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user, is_active= True, is_deleted = False).first()
+                print(self.request.user, businessprofile)
+                request.data["business_profile"] = businessprofile.id
+                serializer = VendorSerializer(data=request.data)
+                if serializer.is_valid():
+                    serializer.save()
+                    response = {
+                            "status_code": 200,
+                            "status": "success",
+                            "message":"vendor created successfully!",
+                            "data": serializer.data
+                        }
+                    return Response(response)
+                else:
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            print(f"error's {e}")
+            response = {
+                "status_code": 500,
+                "status": "error",
+                "message": "vendor cannot be created."
+            }
+            return Response(response, status=status.HTTP_404_NOT_FOUND)
+
+    def put(self, request):
+        try:
+            businessprofile=BusinessProfile.objects.filter(user_profile = self.request.user, is_active= True, is_deleted = False).first()
+            vendor = Vendor.objects.filter(business_profile=businessprofile, id=request.data['id']).first()
+            
+            if vendor:
+                serializer = VendorSerializer(vendor, data=request.data)
+                if serializer.is_valid():
+                    serializer.save()
+                    response = {
+                        "status_code": 200,
+                        "status": "success",
+                        "message": "vendor updated successfully!",
+                        "data": serializer.data
+                    }
+                    return Response(response)
+                else:
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                response = {
+                    "status_code": 404,
+                    "status": "error",
+                    "message": "Vendor not found."
+                }
+                return Response(response, status=status.HTTP_404_NOT_FOUND)
+            
+        except Exception as e:
+            print(f"Error: {e}")
+            response = {
+                "status_code": 500,
+                "status": "error",
+                "message": "An error occurred while updating the vendor."
+            }
+            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def delete(self, request):
+        try:
+            vendor_id = request.data["vendor_id"]
+            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True, is_deleted = False).first()
+            vendor = Vendor.objects.filter(id=vendor_id, business_profile=businessprofile).first()
+            if vendor:
+                vendor.delete()
+                response = {
+                    "status_code": 200,
+                    "status": "success",
+                    "message": "Vendor deleted successfully!"
+                }
+                return Response(response)
+            else:
+                response = {
+                    "status_code": 404,
+                    "status": "error",
+                    "message": "Vendor not found."
+                }
+                return Response(response, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"error: {e}")
+            response = {
+                "status_code": 500,
+                "status": "error",
+                "message": "An error occurred while trying to delete the customer."
+            }
+            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
 class CustomerListCreateAPIView(APIView):
 
 
@@ -618,7 +723,6 @@ class CustomerListCreateAPIView(APIView):
             }
             return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    
     def post(self, request):
         try:
             phone_number = request.data["phone_number"]
@@ -656,6 +760,36 @@ class CustomerListCreateAPIView(APIView):
                 "message": "costumer Not create."
             }
             return Response(response, status=status.HTTP_404_NOT_FOUND)
+
+    def delete(self, request):
+        try:
+            customer_id = request.data["customer_id"]
+            businessprofile= BusinessProfile.objects.filter(user_profile = self.request.user,is_active= True, is_deleted = False).first()
+            customer = Customer.objects.filter(id=customer_id, business_profile=businessprofile).first()
+            if customer:
+                customer.delete()
+                response = {
+                    "status_code": 200,
+                    "status": "success",
+                    "message": "Customer deleted successfully!"
+                }
+                return Response(response)
+            else:
+                response = {
+                    "status_code": 404,
+                    "status": "error",
+                    "message": "Customer not found."
+                }
+                return Response(response, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"error: {e}")
+            response = {
+                "status_code": 500,
+                "status": "error",
+                "message": "An error occurred while trying to delete the customer."
+            }
+            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+             
 
 class CustomerSearchAPI(APIView):
     permission_classes = [IsAuthenticated]
@@ -1279,7 +1413,7 @@ class DashboardAPIView(APIView):
         
         is_purchase_filter = request.GET.get('is_purchase', 0);
         # Filter invoices by business profile and customer ID
-        invoice_data = Invoice.objects.filter(business_profile=business_profile,is_purchase=int(is_purchase_filter))
+        invoice_data =[] # Invoice.objects.filter(business_profile=business_profile,is_purchase=int(is_purchase_filter))
 
         # Get sales data for the current month
         current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(

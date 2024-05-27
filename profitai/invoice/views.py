@@ -634,6 +634,7 @@ class InvoiceOrderAPI(APIView):
             }
             return Response(response)
         
+        
 class InvoiceSearch(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
