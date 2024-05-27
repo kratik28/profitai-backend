@@ -18,20 +18,27 @@ class ProductListCreateView(APIView):
     pagination_class = InfiniteScrollPagination
     
     def get(self, request):
+               # Get the active business profile for the logged-in user
         business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
-        
+
         if business_profile:
-            queryset = Product.objects.filter(business_profile=business_profile).order_by("product_name").prefetch_related(
-                Prefetch('batches', queryset=Batches.objects.filter(is_deleted=False))
-            )
+            # Query products associated with the business profile and annotate total_remaining_quantity
+            queryset = Product.objects.filter(business_profile=business_profile)\
+                .order_by("product_name")\
+                .prefetch_related(
+                    Prefetch('batches', queryset=Batches.objects.filter(is_deleted=False))
+                )\
+                .annotate(total_remaining_quantity=Sum('batches__remaining_quantity'))
         else:
             queryset = Product.objects.none()
-        
+
+        # Paginate the queryset
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(queryset, request, view=self)
         total_pages = paginator.page.paginator.num_pages
         serializer = ProductSerializer(result_page, many=True)
-        
+
+        # Determine response based on 'type' query parameter
         if request.query_params.get('type') == "all":
             response = {
                 "status_code": 200,
@@ -48,7 +55,7 @@ class ProductListCreateView(APIView):
                 "data": serializer.data,
                 "next": paginator.get_next_link(),
             }
-        
+
         return Response(response)
     
     
@@ -317,7 +324,9 @@ class InventorySortingFilterAPI(APIView):
             if businessprofile:
                 queryset = Product.objects.filter(business_profile=businessprofile).order_by("product_name").prefetch_related(
                 Prefetch('batches', queryset=Batches.objects.filter(is_deleted=False))
-            )
+            )\
+            .annotate(total_remaining_quantity=Sum('batches__remaining_quantity'))
+                
             else:
                 queryset = Product.objects.none()
             
@@ -540,11 +549,11 @@ class ProductRecommendListView(APIView):
             queryset = Product.objects.filter(
                 business_profile=business_profile
             ).annotate(
-                total_quantity_remaining=Sum('batches__remaining_quantity')
+                total_remaining_quantity=Sum('batches__remaining_quantity')
             ).filter(
                 total_quantity_remaining__isnull=False,
                 batches__is_deleted=False
-            ).order_by('total_quantity_remaining')
+            ).order_by('total_remaining_quantity')
 
         else:
             # If no business profile is found, return an empty queryset

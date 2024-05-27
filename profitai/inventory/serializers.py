@@ -33,11 +33,12 @@ class ProductTypeSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     # product_type = ProductTypeSerializer()
+    total_remaining_quantity = serializers.IntegerField(read_only=True)
     batches = BatchSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
-        fields = ["id", "product_name", "brand", "product_type", "business_profile", "batches"]
+        fields = ["id", "product_name","total_remaining_quantity", "brand", "product_type", "business_profile", "batches"]
 
 
 class ProductCreateSerializer(serializers.ModelSerializer):
