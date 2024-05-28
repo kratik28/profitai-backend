@@ -162,27 +162,26 @@ class InvoiceRetrieveUpdateDestroyAPIView(APIView):
             invoice_items = InvoiceItem.objects.filter(invoice_id=id, is_deleted=False)
             
             # Get the product IDs from the invoice items
-            product_ids = invoice_items.values_list('product_id', flat=True)
+            # product_ids = invoice_items.values_list('product_id', flat=True)
             
             # Get the product data
-            product_data = queryset = Product.objects.filter(id__in=product_ids)\
-                .prefetch_related(
-                    Prefetch('batches', queryset=Batches.objects.filter(is_deleted=False))
-                )\
-                .annotate(total_remaining_quantity=Sum('batches__remaining_quantity'))
+            # product_data = queryset = Product.objects.filter(id__in=product_ids)\
+            #     .prefetch_related(
+            #         Prefetch('batches', queryset=Batches.objects.filter(is_deleted=False))
+            #     )\
+            #     .annotate(total_remaining_quantity=Sum('batches__remaining_quantity'))
 
             # Serialize the invoice
-            serializer = InvoiceCreateSerializer(invoice_instance, context={'current_domain': current_domain})
+            # serializer = InvoiceCreateSerializer(invoice_instance, context={'current_domain': current_domain})
             
             # Serialize the product data with related batches and quantities
-            product_serializer = ProductdataSerializer(product_data, many=True, context={"invoice_items": invoice_items})
+            # product_serializer = ProductdataSerializer(product_data, many=True, context={"invoice_items": invoice_items})
 
             response = {
                 "status_code": 200,
                 "status": "success",
                 "message": "Invoice Found Successfully!",
-                "data": serializer.data,
-                "product_data": product_serializer.data,
+                "data": InvoiceItemSerializer(invoice_items, many=True).data,
             }
             return Response(response)
         
