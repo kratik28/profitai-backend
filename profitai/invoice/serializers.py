@@ -3,6 +3,7 @@ from rest_framework import serializers
 from inventory.models import Product
 from .models import Invoice, InvoiceItem
 from user_profile.serializers import CustomerPdfSerializer, VendorPdfSerializer
+from inventory.serializers import BatchSerializer
 
 class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,15 +32,13 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
 
 
 class ProductdataSerializer(serializers.ModelSerializer):
-    quantity = serializers.SerializerMethodField()
+    invoice_items = serializers.SerializerMethodField()
+    total_remaining_quantity = serializers.IntegerField(read_only=True)
+    batches = BatchSerializer(many=True, read_only=True)
     class Meta:
         model = Product
-        fields = ["id", "product_name", "brand", "size", "total_quantity", "remaining_quantity",
-                  "sales_price", "purchase_price", "tax", "discount", "status", "BAR_code_number", 
-                  "batch_number", "expiry_date", "created_at", "updated_at","quantity"]
+        fields = ['id', 'product_name', 'total_remaining_quantity','batches', 'invoice_items']
 
-    def get_quantity(self, instance):
-        invoice_items = instance.invoiceitem_set.all()
-        total_quantity = invoice_items.filter(invoice=self.context['invoice'].id).last().quantity
-
-        return total_quantity
+    def get_invoice_items(self, obj):
+        invoice_items = self.context['invoice_items'].filter(product_id=obj.id)
+        return InvoiceItemSerializer(invoice_items, many=True).data

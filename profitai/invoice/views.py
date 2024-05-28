@@ -10,7 +10,7 @@ from invoice.models import Invoice,InvoiceItem
 from rest_framework.permissions import IsAuthenticated
 from user_profile.models import BusinessProfile, Customer, Vendor
 from datetime import datetime
-from django.db.models import Q, Max
+from django.db.models import Q, Prefetch
 from user_profile.pagination import InfiniteScrollPagination
 from django.db import transaction
 from django.db.models import Sum
@@ -141,30 +141,59 @@ class InvoiceRetrieveUpdateDestroyAPIView(APIView):
         except Invoice.DoesNotExist:
             raise status.HTTP_404_NOT_FOUND
 
-    def get(self,request,id):
-        try:  
-            invoice_instance = Invoice.objects.filter(id = id).first()
+    def get(self, request, id):
+        try:
+            business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
+            # Get the invoice instance
+            invoice_instance = Invoice.objects.filter(
+                business_profile=business_profile,
+                id=id).first()
+            if not invoice_instance:
+                return Response({
+                    "status_code": 404,
+                    "status": "failed",
+                    "message": "Invoice Not Found"
+                }, status=404)
+            
+            # Get the current domain for media files
             current_domain = request.build_absolute_uri('/media').rstrip('/')
-            invoice_item =  InvoiceItem.objects.filter(invoice_id=id).values()
-            product_ids = invoice_item.values_list('product_id', flat=True)
-            product_data = Product.objects.filter(id__in=product_ids)
-        
-            serializer = InvoiceCreateSerializer(invoice_instance,context={'current_domain': current_domain})
-            product_serilizer = ProductdataSerializer(product_data,many=True,context={"invoice":invoice_instance})
+            
+            # Get the invoice items related to the invoice
+            invoice_items = InvoiceItem.objects.filter(invoice_id=id, is_deleted=False)
+            
+            # Get the product IDs from the invoice items
+            product_ids = invoice_items.values_list('product_id', flat=True)
+            
+            # Get the product data
+            product_data = queryset = Product.objects.filter(id__in=product_ids)\
+                .prefetch_related(
+                    Prefetch('batches', queryset=Batches.objects.filter(is_deleted=False))
+                )\
+                .annotate(total_remaining_quantity=Sum('batches__remaining_quantity'))
+
+            # Serialize the invoice
+            serializer = InvoiceCreateSerializer(invoice_instance, context={'current_domain': current_domain})
+            
+            # Serialize the product data with related batches and quantities
+            product_serializer = ProductdataSerializer(product_data, many=True, context={"invoice_items": invoice_items})
+
             response = {
-                        "status_code": 200,
-                        "status": "success",
-                        "message":"Invoice Found Successfully!",
-                        "data": serializer.data,
-                        "product_data":product_serilizer.data,
-                    }
+                "status_code": 200,
+                "status": "success",
+                "message": "Invoice Found Successfully!",
+                "data": serializer.data,
+                "product_data": product_serializer.data,
+            }
             return Response(response)
+        
         except Exception as e:
             print(e)
-            return Response( {"status_code": 500,
-                            "status": "faild",
-                            "message":"Invoice Not Found"})
-        
+            return Response({
+                "status_code": 500,
+                "status": "failed",
+                "message": "An error occurred while retrieving the invoice details."
+            }, status=500)
+            
     def put(self, request, id):
         try:
             instance = self.get_object(id)
