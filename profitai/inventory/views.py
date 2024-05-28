@@ -538,7 +538,7 @@ class ProductRecommendListView(APIView):
     def get(self, request):
         # Fetch the active business profile for the logged-in user
         business_profile = BusinessProfile.objects.filter(
-            user_profile=request.user, 
+            # user_profile=request.user, 
             is_active=True, 
             is_deleted=False
         ).first()
@@ -551,7 +551,7 @@ class ProductRecommendListView(APIView):
             ).annotate(
                 total_remaining_quantity=Sum('batches__remaining_quantity')
             ).filter(
-                total_quantity_remaining__isnull=False,
+                total_remaining_quantity__isnull=False,
                 batches__is_deleted=False
             ).order_by('total_remaining_quantity')
 

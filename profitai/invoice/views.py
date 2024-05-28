@@ -405,7 +405,7 @@ class InvoiceOrderAPI(APIView):
 
                 # Determine if it's a purchase
                 is_purchase = bool(vendor_id)
-
+                
                 # Create invoice
                 invoice = Invoice.objects.create(
                     business_profile=business_profile,
@@ -423,10 +423,10 @@ class InvoiceOrderAPI(APIView):
                     remaining_total=remaining_total,
                     order_date_time=timezone.now()
                 )
-
+                
                 # Create invoice items and update batch quantities
                 self.create_invoice_items(invoice, product_ids)
-
+                
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
                 invoice_item_data = InvoiceItemSerializer(invoice.invoiceitem_set.all(), many=True).data
@@ -442,11 +442,9 @@ class InvoiceOrderAPI(APIView):
                     "customer": customer,
                     "flage": page_break(id_range),
                 }
-
                 # Generate invoice PDF
                 invoice_id = invoice.id
                 invoices = invoice_pdf_create(request, data, invoice_id)
-                
                 # Prepare response
                 response = {
                     "status_code": 200,
@@ -486,6 +484,7 @@ class InvoiceOrderAPI(APIView):
         for item in product_ids:
             batch = Batches.objects.select_for_update().get(id=item["batchId"])
             product = batch.product
+            print(product.id,invoice.id, ">>>")
             price = float(batch.sales_price) * item["quantity"]
 
             invoice_item_data.append(InvoiceItem(
