@@ -28,7 +28,11 @@ SECRET_KEY = 'django-insecure-8*3tad&%sl)(c$081%9qtr^t&9x@s2lz2@8$cb=cj$9ny25)yj
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+# CORS Config
+CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = False
+
+ALLOWED_HOSTS=['*']
 # ALLOWED_HOSTS = [
 #     '159.203.187.32',
 #     '127.0.0.1',
@@ -49,6 +53,9 @@ INSTALLED_APPS = [
     'master_menu',
     'inventory',
     'invoice',
+    'employee',
+    'expense',
+    'corsheaders',
     'django_extensions',
     'rest_framework_simplejwt.token_blacklist',
     'rest_framework',
@@ -60,6 +67,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -92,19 +100,33 @@ WSGI_APPLICATION = 'profitai.wsgi.application'
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
+#         'NAME': BASE_DIR + 'db.sqlite3',
 #     }
 # }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'profitai',
+        'NAME': 'profitai-1',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',
-        'PORT': '3306',
+        'PORT': '3366',
+        'OPTIONS': {
+            'sql_mode': 'STRICT_TRANS_TABLES',  # Enable Strict Mode
+        },
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'profitai',
+#         'USER': 'profitai',
+#         'PASSWORD': 'ProfitAI@28AI',
+#         'HOST': '64.225.54.181',
+#         'PORT': '3306',
+#     }
+# }
 
 
 # Password validation
@@ -172,8 +194,12 @@ SIMPLE_JWT = {
 }
 
 # GST API credentials
-API_KEY = 'key_live_TD5jRvdqoFq9w91w1xvEsGqCqiEqHm5x'#'key_test_I9srdfPYDDH1mTugDgOQGb1Qu933donX'
-API_SECRET = 'secret_live_0wtQorJswI59H815YhkWsNskLBkV46wF'#'secret_test_YY63L7T6NQ2M33Quipq89G0rLjtH0UiB'
+# API_KEY = 'key_live_TD5jRvdqoFq9w91w1xvEsGqCqiEqHm5x'#'key_test_I9srdfPYDDH1mTugDgOQGb1Qu933donX'
+# API_SECRET = 'secret_live_0wtQorJswI59H815YhkWsNskLBkV46wF'#'secret_test_YY63L7T6NQ2M33Quipq89G0rLjtH0UiB'
+
+API_KEY = 'edec4bcf0bmsh035710578249d5ep11d500jsn19a81af14cfb'
+API_HOST = 'gst-return-status.p.rapidapi.com'
+
 #telesign api credentials
 TELESIGN_CUSTOMER_ID="239C4BEB-C78F-46C3-9065-3E51FB5EA057" 
 TELESIGN_API_KEY="rt3kpxO5A3f8PQF8/IPtpnldcmEUObTS9e8+3jKMPOVhxduftczGNjG8jGub2APcAXbQLjJWdC8zXMODCecQIQ=="
