@@ -8,7 +8,7 @@ from .serializers import TopSellingProductSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
 from user_profile.models import UserProfile, UserProfileOTP, BusinessProfile, Customer
 from user_profile.pagination import InfiniteScrollPagination
-from user_profile.serializers import  CustomerListSerializer, CustomerSortSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, VendorSerializer, UserProfileSerializer
+from user_profile.serializers import  CustomerListSerializer, CustomerSortSerializer, VendorAllSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, VendorSerializer, UserProfileSerializer
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -34,7 +34,7 @@ from django.db.models.functions import TruncDay
 import re
 from django.db.models.functions import Coalesce
 
-def get_grand_total_and_status(customer,businessprofile):
+def get_grand_total_and_status(customer, businessprofile):
     queryset = customer.annotate(
                         all_remaining=Sum('invoice__remaining_total'),
                         all_grand_total=Sum('invoice__grand_total'),
@@ -44,6 +44,20 @@ def get_grand_total_and_status(customer,businessprofile):
                         ),
                         last_invoice_status=Subquery(
                             Invoice.objects.filter(business_profile=businessprofile).filter(customer=OuterRef('id')).order_by('-id').values('status')[:1]
+                        )
+                    )
+    return queryset
+
+def get_vendor_grand_total_and_status(vendor, businessprofile):
+    queryset = vendor.annotate(
+                        all_remaining=Sum('invoice__remaining_total'),
+                        all_grand_total=Sum('invoice__grand_total'),
+                        all_paid_amount=Sum('invoice__paid_amount'),
+                        last_invoice_grand_total=Subquery(
+                            Invoice.objects.filter(business_profile=businessprofile).filter(vendor=OuterRef('id')).order_by('-id').values('grand_total')[:1]
+                        ),
+                        last_invoice_status=Subquery(
+                            Invoice.objects.filter(business_profile=businessprofile).filter(vendor=OuterRef('id')).order_by('-id').values('status')[:1]
                         )
                     )
     return queryset
@@ -479,24 +493,24 @@ class VendorListAPIView(APIView):
         vendor_queryset = Vendor.objects.filter(business_profile=businessprofile).distinct().order_by('-id')
         if search:
                   vendor_queryset = vendor_queryset.filter( 
-                      Q(customer_name__icontains=search)|
+                      Q(vendor_name__icontains=search)|
                       Q(phone_number__icontains=search) |
                       Q(gst_number__icontains=search)
-                  ).order_by("customer_name")
+                  ).order_by("vendor_name")
 
         if favourite:
             vendor_queryset = vendor_queryset.filter(favourite= True)
         if name == "ascending":
-                vendor_queryset = vendor_queryset.order_by("customer_name")
+                vendor_queryset = vendor_queryset.order_by("vendor_name")
         if name == "descending":
-                vendor_queryset = vendor_queryset.order_by("-customer_name")
+                vendor_queryset = vendor_queryset.order_by("-vendor_name")
         
-        queryset = get_grand_total_and_status(vendor_queryset,businessprofile)
+        queryset = get_vendor_grand_total_and_status(vendor_queryset,businessprofile)
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(queryset, request, view=self)
         total_length_before_pagination = queryset.count()
         total_pages = paginator.page.paginator.num_pages
-        serializer = CustomerallSerializer(result_page, many=True)
+        serializer = VendorAllSerializer(result_page, many=True)
         response = {
             "status_code": 200,
             "status": "success",

@@ -124,6 +124,18 @@ class CustomerallSerializer(serializers.ModelSerializer):
         model = Customer
         fields = ['id', "customer_name","address" ,"zipcode" ,"phone_number","gst_number" ,"favourite", "email","last_invoice_grand_total","last_invoice_status","all_remaining","all_paid_amount","all_grand_total"]
     
+    
+class VendorAllSerializer(serializers.ModelSerializer):
+    last_invoice_grand_total = serializers.DecimalField(max_digits=10, decimal_places=2)
+    last_invoice_status = serializers.CharField()
+    all_remaining =  serializers.DecimalField(max_digits=10, decimal_places=2)
+    all_grand_total = serializers.DecimalField(max_digits=10, decimal_places=2)
+    all_paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    class Meta:
+        model = Vendor
+        fields = ['id', "vendor_name","address" ,"zipcode" ,"phone_number","gst_number" ,"favourite", "email","last_invoice_grand_total","last_invoice_status","all_remaining","all_paid_amount","all_grand_total"]
+        
+    
 class CustomerSortSerializer(serializers.ModelSerializer):
     last_invoice_grand_total = serializers.DecimalField(max_digits=10, decimal_places=2)
     last_invoice_status = serializers.CharField()
