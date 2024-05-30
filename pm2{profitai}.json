@@ -1,0 +1,12 @@
+ {
+  "apps": [
+    {
+      "name": "profitai-backend",
+      "cwd": "/srv/profitai",
+      "args": "runserver",
+      "script": "manage.py",
+      "exec_mode": "fork",
+      "exec_interpreter": "python"
+    }
+  ]
+}
