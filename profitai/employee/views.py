@@ -43,12 +43,13 @@ class EmployeeListCreateView(APIView):
         return Response(response)
 
     def post(self, request):
+       
         business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
         if not business_profile:
             return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
-
+    
         data = request.data
-        data['business_profile'] = business_profile
+        data['business_profile'] = business_profile.id
         serializer = EmployeeSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
@@ -99,7 +100,7 @@ class AttendanceListCreateView(APIView):
     pagination_class = InfiniteScrollPagination
 
     def get(self, request):
-        business_profile = 1#BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
         if not business_profile:
             return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
         
@@ -141,7 +142,7 @@ class AttendanceListCreateView(APIView):
             return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
         data = request.data
-        data['business_profile'] = business_profile
+        data['business_profile'] = business_profile.id
         
         serializer = AttendanceSerializer(data=data)
         if serializer.is_valid():
