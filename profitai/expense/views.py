@@ -17,10 +17,10 @@ class ExpenseListCreateView(APIView):
             return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
         expenses = Expense.objects.filter(business_profile=business_profile)
-        category_id = request.query_params.get('category_id')
+        category = request.query_params.get('category')
         
-        if category_id:
-            expenses = expenses.filter(category_id=category_id)
+        if category:
+            expenses = expenses.filter(category=category)
 
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(expenses, request, view=self)
