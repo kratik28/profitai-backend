@@ -53,7 +53,7 @@ class ExpenseListCreateView(APIView):
             return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
         data = request.data
-        data['business_profile'] = business_profile
+        data['business_profile'] = business_profile.id
         serializer = ExpenseSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
