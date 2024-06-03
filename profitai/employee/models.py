@@ -11,6 +11,8 @@ class Employee(models.Model):
     date_of_joining = models.DateField()
     salary = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
+    email = models.EmailField(max_length=254, unique=True, null=True)  # Add email field
+    holidays = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
