@@ -8,7 +8,7 @@ from .serializers import TopSellingProductSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
 from user_profile.models import UserProfile, UserProfileOTP, BusinessProfile, Customer
 from user_profile.pagination import InfiniteScrollPagination
-from user_profile.serializers import  CustomerListSerializer, CustomerSortSerializer, VendorAllSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, VendorSerializer, UserProfileSerializer
+from user_profile.serializers import  CustomerListSerializer, VendorCustomerSerializer, CustomerSortSerializer, VendorAllSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, VendorSerializer, UserProfileSerializer
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -27,12 +27,13 @@ import indiapins
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 from rest_framework.decorators import api_view
-from django.db.models import Q,F, ExpressionWrapper, DecimalField
+from django.db.models import Q,F, ExpressionWrapper, DecimalField, Value, CharField
 import requests
 from profitai import settings
 from django.db.models.functions import TruncDay
 import re
 from django.db.models.functions import Coalesce
+from itertools import chain
 
 def get_grand_total_and_status(customer, businessprofile):
     queryset = customer.annotate(
@@ -1632,4 +1633,64 @@ class GlobalSearchAPIView(APIView):
             }
         }
 
+        return Response(response)
+    
+    
+class VendorCustomerListAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination  # Assuming you have this pagination class implemented
+
+    def get(self, request):
+        name = request.GET.get('name', None)
+        search = request.GET.get('search', None)
+        favourite = request.GET.get('favourite', None)
+        
+        businessprofile = BusinessProfile.objects.filter(
+            user_profile=request.user,
+            is_active=True, 
+            is_deleted=False
+        ).first()
+
+        vendor_filters = Q(business_profile=businessprofile, is_active=True)
+        customer_filters = Q(business_profile=businessprofile, is_active=True)
+
+        if search:
+            vendor_filters &= Q(vendor_name__icontains=search) | Q(phone_number__icontains=search) | Q(gst_number__icontains=search)
+            customer_filters &= Q(customer_name__icontains=search) | Q(phone_number__icontains=search) | Q(gst_number__icontains=search)
+
+        if favourite:
+            vendor_filters &= Q(favourite=True)
+            customer_filters &= Q(favourite=True)
+
+        vendor_queryset = Vendor.objects.filter(vendor_filters).annotate(
+            name=F('vendor_name'),
+            type=Value('vendor', output_field=CharField())
+        )
+
+        customer_queryset = Customer.objects.filter(customer_filters).annotate(
+            name=F('customer_name'),
+            type=Value('customer', output_field=CharField())
+        )
+
+        combined_queryset = list(chain(vendor_queryset, customer_queryset))
+
+        # Apply sorting
+        reverse = (name == 'descending')
+        combined_queryset.sort(key=lambda x: x.name, reverse=reverse)
+
+        paginator = self.pagination_class()
+        result_page = paginator.paginate_queryset(combined_queryset, request, view=self)
+        total_length_before_pagination = len(combined_queryset)
+        total_pages = (total_length_before_pagination // paginator.page_size) + (1 if total_length_before_pagination % paginator.page_size > 0 else 0)
+        serializer = VendorCustomerSerializer(result_page, many=True)
+
+        response = {
+            "status_code": 200,
+            "status": "success",
+            "message": "All vendors and customers found",
+            "data": serializer.data,
+            "total_length_before_pagination": total_length_before_pagination,
+            "total_pages": total_pages,
+            "next": paginator.get_next_link(),
+        }
         return Response(response)

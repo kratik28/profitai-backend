@@ -163,3 +163,35 @@ class TopSellingProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ['id', 'name', 'amount']
+        
+        
+class VendorCustomerSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField(max_length=50)
+    phone_number = serializers.CharField(max_length=20)
+    gst_number = serializers.CharField(max_length=50, allow_blank=True, required=False)
+    favourite = serializers.BooleanField()
+    email = serializers.EmailField(allow_blank=True, required=False)
+    type = serializers.CharField()
+
+    def to_representation(self, instance):
+        if isinstance(instance, Vendor):
+            return {
+                'id': instance.id,
+                'name': instance.vendor_name,
+                'phone_number': instance.phone_number,
+                'gst_number': instance.gst_number,
+                'favourite': instance.favourite,
+                'email': instance.email,
+                'type': 'vendor'
+            }
+        elif isinstance(instance, Customer):
+            return {
+                'id': instance.id,
+                'name': instance.customer_name,
+                'phone_number': instance.phone_number,
+                'gst_number': instance.gst_number,
+                'favourite': instance.favourite,
+                'email': instance.email,
+                'type': 'customer'
+            }

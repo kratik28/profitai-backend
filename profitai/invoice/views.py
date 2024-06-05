@@ -95,7 +95,13 @@ class InvoiceListCreateView(APIView):
         date_to_param =request.GET.get('date_to', None)
         month_param =request.GET.get('month', None)
         product_id =request.GET.get('product_id', None)
+        vendorId = request.GET.get("vendor_id", None)
+        customerId = request.GET.get("customer_id", None)
         
+        if vendorId:
+            queryset = queryset.filter(vendor=vendorId)
+        if customerId:
+            queryset = queryset.filter(customer=customerId)
         if product_id:
             invoiceIds = list(InvoiceItem.objects.filter(product_id=product_id).values_list('invoice_id', flat=True))
             queryset = queryset.filter(id__in=invoiceIds)
@@ -899,14 +905,13 @@ class InvoiceCustomerSalesAnalytics(APIView):
         
         # Get the customerId from the request query parameters
         customerId = request.GET.get("customerId")
-        is_purchase_filter = request.GET.get('is_purchase', 0);
         product_id=request.GET.get('product_id', 0);
 
         # Get the business profile associated with the current user
         business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted = False).first()
         
         # Filter invoices by business profile and customer ID
-        invoice_data = Invoice.objects.filter(business_profile=business_profile,customer__is_purchase=int(is_purchase_filter))
+        invoice_data = Invoice.objects.filter(business_profile=business_profile)
         
         if product_id:
             invoiceIds = list(InvoiceItem.objects.filter(product_id=product_id).values_list('invoice_id', flat=True))

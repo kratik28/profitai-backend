@@ -57,8 +57,8 @@ class ExpenseListCreateView(APIView):
         serializer = ExpenseSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"status": "success", "message": "Expense created successfully.", "data": serializer.data}, status=status.HTTP_201_CREATED)
+        return Response({"status": "error", "message":  serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 class ExpenseRetrieveUpdateDestroyView(APIView):
     permission_classes = [IsAuthenticated]
@@ -75,7 +75,7 @@ class ExpenseRetrieveUpdateDestroyView(APIView):
         if not expense:
             return Response({"status": "error", "message": "Expense not found."}, status=status.HTTP_404_NOT_FOUND)
         serializer = ExpenseSerializer(expense)
-        return Response(serializer.data)
+        return Response({"status": "success", "message": "Expense fetched successfully.", "data": serializer.data})
 
     def put(self, request, pk):
         expense = self.get_object(pk, request.user)
@@ -84,12 +84,12 @@ class ExpenseRetrieveUpdateDestroyView(APIView):
         serializer = ExpenseSerializer(expense, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"status": "success", "message": "Expense updated successfully.", "data": serializer.data})
+        return Response({"status": "error", "message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         expense = self.get_object(pk, request.user)
         if not expense:
             return Response({"status": "error", "message": "Expense not found."}, status=status.HTTP_404_NOT_FOUND)
         expense.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({"status": "success", "message": "Expense deleted successfully."}, status=status.HTTP_204_NO_CONTENT)

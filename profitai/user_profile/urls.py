@@ -14,6 +14,7 @@ urlpatterns = [
     path('backend/business/deactivate/', user_profile_view.BusinessProfileDeactivate.as_view(),name="business-deactivate"),
     path('backend/vendor/', user_profile_view.VendorListAPIView.as_view(), name='vendor-list'),
     path('backend/costomer/', user_profile_view.CustomerListCreateAPIView.as_view(), name='costomer-list-create'),
+    path('backend/customer_vendor/', user_profile_view.VendorCustomerListAPIView.as_view(), name='customer_vendor-list-create'),
     path('backend/userupdate/',user_profile_view.UserProfileUpdateview.as_view()),
     path("backend/costomer/search",user_profile_view.CustomerSearchAPI.as_view()),
     path("backend/costomer/favourite/add",user_profile_view.CustomerfavouriteAPI.as_view()),
