@@ -72,6 +72,8 @@ class ProfitLossListView(APIView):
             overall_tax=Sum('invoice__tax'),
             overall_discount=Sum('invoice__discount'),
         )
+        
+        overall_stats = {key: value or 0 for key, value in overall_stats.items()}
 
         overall_stats['overall_gross_profit_percentage'] = (overall_stats['overall_gross_profit'] / overall_stats['overall_gross_sales']) * 100 if overall_stats['overall_gross_sales'] else 0
         overall_stats['overall_net_profit'] = overall_stats['overall_gross_profit'] - overall_stats['overall_tax'] - overall_stats['overall_discount']
