@@ -21,14 +21,15 @@ from django.urls import path,include
 from user_profile import views as user_profile_view
 
 urlpatterns = [
-    
     path('admin/', admin.site.urls),    
     path("user_profile/",include("user_profile.urls")),
     path('invoice/',include('invoice.urls')),
     path('inventory/',include('inventory.urls')),
     path('master_menu/',include('master_menu.urls')),
     path('employee/',include('employee.urls')),
-    path('expense/',include('expense.urls'))    
+    path('expense/',include('expense.urls')),    
+    path('online_store/',include('online_store.urls')),
+    path('profit_and_loss/',include('profit_and_loss.urls'))
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

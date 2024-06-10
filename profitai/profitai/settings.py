@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     'master_menu',
     'employee',
     'expense',
+    'online_store',
+    'profit_and_loss',
     'inventory',
     'corsheaders',
     'invoice',
@@ -104,13 +106,27 @@ WSGI_APPLICATION = 'profitai.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'profitai',
-        'USER': 'profitai',
-        'PASSWORD': 'ProfitAI@28AI',
-        'HOST': '64.225.54.181',
-        'PORT': '3306',
+        'NAME': 'profitai-1',
+        'USER': 'root',
+        'PASSWORD': '',
+        'HOST': 'localhost',
+        'PORT': '3366',
+        'OPTIONS': {
+            'sql_mode': 'STRICT_TRANS_TABLES',  # Enable Strict Mode
+        },
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'profitai',
+#         'USER': 'profitai',
+#         'PASSWORD': 'ProfitAI@28AI',
+#         'HOST': '64.225.54.181',
+#         'PORT': '3306',
+#     }
+# }
 
 
 # Password validation

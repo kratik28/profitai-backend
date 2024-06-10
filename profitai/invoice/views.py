@@ -518,9 +518,7 @@ class InvoiceOrderAPI(APIView):
         for item in product_ids:
             batch = Batches.objects.select_for_update().get(id=item["batchId"])
             product = batch.product
-            print(product.id,invoice.id, ">>>")
             price = float(batch.sales_price) * item["quantity"]
-
             invoice_item_data.append(InvoiceItem(
                 invoice=invoice,
                 product=product,
@@ -681,8 +679,7 @@ class InvoiceSearch(APIView):
                 innvoice = Invoice.objects.filter(business_profile=businessprofile).filter(
                     Q(customer__customer_name__icontains=search_query) |
                     Q(customer__phone_number__icontains=search_query) |
-                    Q(order_date_time__icontains=search_query) 
-                                    
+                    Q(order_date_time__icontains=search_query)                   
                 )
                 if innvoice:
                     businessprofile_innvoices = innvoice.filter(business_profile=businessprofile)
