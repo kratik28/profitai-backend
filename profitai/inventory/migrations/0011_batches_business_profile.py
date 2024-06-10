@@ -8,13 +8,13 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('inventory', '0010_remove_product_bar_code_number_and_more'),
-        ('user_profile', '0028_remove_customer_is_purchase_vendor'),
+        # ('user_profile', '0028_remove_customer_is_purchase_vendor'),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='batches',
-            name='business_profile',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='user_profile.businessprofile'),
-        ),
+        # migrations.AddField(
+        #     model_name='batches',
+        #     name='business_profile',
+        #     field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='user_profile.businessprofile'),
+        # ),
     ]

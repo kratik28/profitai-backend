@@ -15,7 +15,7 @@ class Product(models.Model):
     
 class Batches(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, null=False, related_name='batches')
-    business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=False)
+    business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=True)
     size = models.CharField(max_length=50, default=None, null=True, blank=True)
     total_quantity = models.IntegerField(default=None, blank=True, null=True)
     remaining_quantity = models.IntegerField(default=None, blank=True, null=True)
