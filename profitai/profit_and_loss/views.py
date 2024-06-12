@@ -1,11 +1,16 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 from django.db.models import Sum, Count, F, ExpressionWrapper, DecimalField, Q, Avg
 from django.db.models.functions import TruncDay, TruncWeek, TruncMonth, TruncQuarter, TruncYear
 from invoice.models import InvoiceItem, Invoice
 from user_profile.models import BusinessProfile
+from expense.models import Expense
+from expense.serializers import ExpenseSerializer
 from user_profile.pagination import InfiniteScrollPagination
+from datetime import datetime
+
 
 class ProfitLossListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -159,5 +164,59 @@ class ProfitLossListView(APIView):
             "data": result_page,
             "total_pages":total_pages,
             "total_length_before_pagination":total_length_before_pagination,
+            "next": paginator.get_next_link(),
+        })
+
+
+class ExpenseStatementListView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+    
+    def get(self, request, format=None):
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+        if not business_profile:
+            return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        group_by = request.query_params.get('group_by', 'day')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        expenses = Expense.objects.filter(business_profile=business_profile)
+        
+        if start_date and end_date:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d')
+                end_date = datetime.strptime(end_date, '%Y-%m-%d')
+                expenses = expenses.filter(date__range=[start_date, end_date])
+            except ValueError:
+                return Response({"status": "error", "message": "Invalid date format. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+
+        group_annotations = {
+            'day': TruncDay('date'),
+            'week': TruncWeek('date'),
+            'month': TruncMonth('date'),
+            'quarter': TruncQuarter('date'),
+            'year': TruncYear('date')
+        }
+
+        if group_by in group_annotations:
+            expenses = expenses.annotate(group=group_annotations[group_by]).values('group').annotate(total_cost=Sum('cost')).order_by('group')
+        elif group_by == 'category':
+            expenses = expenses.values('category').annotate(total_cost=Sum('cost')).order_by('category')
+        else:
+            return Response({"status": "error", "message": "Invalid group_by parameter"}, status=status.HTTP_400_BAD_REQUEST)
+
+        paginator = self.pagination_class()
+        result_page = paginator.paginate_queryset(expenses, request, view=self)
+        total_length_before_pagination = expenses.count()
+        total_pages = paginator.page.paginator.num_pages
+        
+        return Response({
+            "status_code": status.HTTP_200_OK,
+            "status": "success",
+            "message": "Expense Statements Retrieved Successfully",
+            "data": result_page,
+            "total_pages": total_pages,
+            "total_length_before_pagination": total_length_before_pagination,
             "next": paginator.get_next_link(),
         })
