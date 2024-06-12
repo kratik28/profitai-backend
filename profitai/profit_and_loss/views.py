@@ -20,7 +20,7 @@ class ProfitLossListView(APIView):
         customer_id = request.GET.get("customer_id")
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
-        group_by = request.GET.get("group_by", "customer_zipcode")
+        group_by = request.GET.get("group_by", "day")
         search = request.GET.get("search")
         
         business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
