@@ -6,6 +6,7 @@ from .models import Employee, Attendance
 from .serializers import EmployeeSerializer, AttendanceSerializer
 from user_profile.models import BusinessProfile
 from user_profile.pagination import InfiniteScrollPagination
+from django.db.models import Q
 
 class EmployeeListCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -17,6 +18,11 @@ class EmployeeListCreateView(APIView):
             return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
         employees = Employee.objects.filter(business_profile=business_profile)
+        search = request.GET.get('search', None)
+        
+        if search:
+                employees = employees.filter( Q(name__icontains=search) )
+                
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(employees, request, view=self)
         total_length_before_pagination = employees.count()

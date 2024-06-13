@@ -6,6 +6,7 @@ from .models import Expense
 from .serializers import ExpenseSerializer
 from user_profile.models import BusinessProfile
 from user_profile.pagination import InfiniteScrollPagination
+from django.db.models import Q
 
 class ExpenseListCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -17,10 +18,17 @@ class ExpenseListCreateView(APIView):
             return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
         expenses = Expense.objects.filter(business_profile=business_profile)
-        category = request.query_params.get('category')
+        category = request.GET.get('category')
+        search = request.GET.get('search')
         
         if category:
             expenses = expenses.filter(category=category)
+        
+        if search:
+                expenses = expenses.filter(
+                    Q(expense_name__icontains=search) |
+                    Q(note__icontains=search)
+                )
 
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(expenses, request, view=self)
