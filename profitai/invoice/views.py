@@ -27,8 +27,9 @@ class InvoiceCustomerListView(APIView):
         is_cancelled = request.GET.get("is_cancelled", "0") == "1"
         
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-        invoice_item_data = Invoice.objects.filter(business_profile=business_profile,customer=customerId, is_deleted = is_cancelled)
-        queryset = invoice_item_data.filter(customer_id = customerId).order_by('-id')
+        queryset = Invoice.objects.filter(business_profile=business_profile,vendor__isnull = True, is_deleted = is_cancelled)
+        if customerId:
+            queryset = queryset.filter(customer__id = customerId).order_by('-id')
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(queryset, request, view=self)
         total_length_before_pagination = queryset.count()
@@ -60,7 +61,9 @@ class InvoiceVendorListView(APIView):
         vendorId = request.GET.get("vendor_id")
         is_cancelled = request.GET.get("is_cancelled", "0") == "1"
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-        queryset = Invoice.objects.filter(business_profile=business_profile, vendor=vendorId, is_deleted = is_cancelled).order_by('-id')
+        queryset = Invoice.objects.filter(business_profile=business_profile, customer__isnull = True, is_deleted = is_cancelled).order_by('-id')
+        if vendorId:
+            queryset = queryset.filter(vendor__id = vendorId).order_by('-id')
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(queryset, request, view=self)
         total_length_before_pagination = queryset.count()
