@@ -1428,7 +1428,7 @@ class DashboardAPIView(APIView):
         
         is_purchase_filter = request.GET.get('is_purchase', 0);
         # Filter invoices by business profile and customer ID
-        invoice_data =[] # Invoice.objects.filter(business_profile=business_profile,is_purchase=int(is_purchase_filter))
+        invoice_data =Invoice.objects.filter(business_profile=business_profile, customer__isnull=False, is_deleted = False)
 
         # Get sales data for the current month
         current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(

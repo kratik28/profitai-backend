@@ -30,7 +30,8 @@ class ProfitLossListView(APIView):
         invoice_items = InvoiceItem.objects.filter(
             invoice__business_profile=business_profile,
             is_deleted=False,
-            invoice__customer__isnull=False
+            invoice__customer__isnull=False,
+            invoice__is_deleted = False
         )
         
         if start_date and end_date:
@@ -243,7 +244,8 @@ class ProfitAndLossTaxStatementListView(APIView):
         invoice_items = InvoiceItem.objects.filter(
             invoice__business_profile=business_profile,
             is_deleted=False,
-            invoice__customer__isnull=False
+            invoice__customer__isnull=False,
+            invoice__is_deleted = False
         )
         
         if start_date and end_date:
@@ -369,8 +371,11 @@ class ProfitAndLossTaxStatementListView(APIView):
             invoice['expenses'] = float(expense)
             invoice['net_profit'] = Decimal(invoice['net_profit'] or 0) - expense  # Deducting expenses from net profit
             invoice['net_profit_percentage'] = (invoice['net_profit'] / Decimal(invoice['gross_sales'])) * Decimal('100.0') if invoice['gross_sales'] else Decimal('0.0')
+            overall_stats['overall_net_profit'] = Decimal(overall_stats['overall_net_profit'] or 0)  - expense
             merged_data.append(invoice)
-
+            
+        overall_stats['overall_net_profit_percentage'] = (overall_stats['overall_net_profit'] / overall_stats['overall_gross_sales']) * 100 if overall_stats['overall_gross_sales'] else 0
+        
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(merged_data, request, view=self)
         total_length_before_pagination = len(merged_data)

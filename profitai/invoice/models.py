@@ -25,6 +25,10 @@ class Invoice(models.Model):
     is_purchase = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    def delete(self, *args, **kwargs):
+       self.is_deleted = True
+       self.save()
 
     def generate_transaction_id(self):
         # Use a combination of current timestamp and a unique identifier

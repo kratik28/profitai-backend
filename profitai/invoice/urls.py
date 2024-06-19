@@ -8,6 +8,7 @@ urlpatterns = [
     path('api/invoice/listcreate',invoice_view.InvoiceListCreateView().as_view(), name="invoice-create"),
     path('api/invoice/details/<int:id>',invoice_view.InvoiceRetrieveUpdateDestroyAPIView().as_view(), name="invoice-create"),
     path('api/order/create/',invoice_view.InvoiceOrderAPI().as_view(), name="invoice-order"),
+    path('api/order/create/<int:invoice_id>/', invoice_view.InvoiceOrderAPI().as_view(), name='invoice-delete'),
     path("api/invoice/search",invoice_view.InvoiceSearch().as_view(),name = "invoice-search"),
     path("api/invoice/sort/",invoice_view.InvoiceSort().as_view(),name = "invoice-sort"),
     path('api/invoice/analytics',invoice_view.InvoiceListChartView.as_view(),name='analytics'),
