@@ -24,8 +24,10 @@ class InvoiceCustomerListView(APIView):
     pagination_class = InfiniteScrollPagination
     def get(self , request):
         customerId = request.GET.get("customer_id")
+        is_cancelled = request.GET.get("is_cancelled", "0") == "1"
+        
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-        invoice_item_data = Invoice.objects.filter(business_profile=business_profile,customer=customerId, is_deleted = False)
+        invoice_item_data = Invoice.objects.filter(business_profile=business_profile,customer=customerId, is_deleted = is_cancelled)
         queryset = invoice_item_data.filter(customer_id = customerId).order_by('-id')
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(queryset, request, view=self)
@@ -56,8 +58,9 @@ class InvoiceVendorListView(APIView):
     pagination_class = InfiniteScrollPagination
     def get(self , request):
         vendorId = request.GET.get("vendor_id")
+        is_cancelled = request.GET.get("is_cancelled", "0") == "1"
         business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-        queryset = Invoice.objects.filter(business_profile=business_profile, vendor=vendorId, is_deleted = False).order_by('-id')
+        queryset = Invoice.objects.filter(business_profile=business_profile, vendor=vendorId, is_deleted = is_cancelled).order_by('-id')
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(queryset, request, view=self)
         total_length_before_pagination = queryset.count()
@@ -86,9 +89,6 @@ class InvoiceListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination
     def get(self , request):
-        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
-        queryset = Invoice.objects.filter(business_profile=business_profile, is_deleted = False).order_by("-id")
-        paginator = self.pagination_class()
         is_purchase_filter = request.GET.get('is_purchase', None);
         search = request.GET.get('search', None)
         date_from_param =request.GET.get('date_from', None)
@@ -97,6 +97,11 @@ class InvoiceListCreateView(APIView):
         product_id =request.GET.get('product_id', None)
         vendorId = request.GET.get("vendor_id", None)
         customerId = request.GET.get("customer_id", None)
+        is_cancelled = request.GET.get("is_cancelled", "0") == "1"
+        
+        business_profile = BusinessProfile.objects.filter(user_profile = request.user, is_active = True, is_deleted = False).first()
+        queryset = Invoice.objects.filter(business_profile=business_profile, is_deleted = is_cancelled).order_by("-id")
+        paginator = self.pagination_class()
         
         if vendorId:
             queryset = queryset.filter(vendor=vendorId)
