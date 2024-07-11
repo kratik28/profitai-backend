@@ -9,4 +9,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
-        fields = '__all__'       
+        fields = '__all__'   
+        
+
+class AttendanceWithEmployeeSerializer(serializers.ModelSerializer):
+    employee = EmployeeSerializer()
+
+    class Meta:
+        model = Attendance
+        fields = '__all__'    

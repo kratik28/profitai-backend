@@ -3,10 +3,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from .models import Employee, Attendance
-from .serializers import EmployeeSerializer, AttendanceSerializer
+from .serializers import EmployeeSerializer, AttendanceSerializer, AttendanceWithEmployeeSerializer
 from user_profile.models import BusinessProfile
 from user_profile.pagination import InfiniteScrollPagination
 from django.db.models import Q
+from django.utils.dateparse import parse_date
 
 class EmployeeListCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -111,17 +112,28 @@ class AttendanceListCreateView(APIView):
             return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
         
         
-        attendances = Attendance.objects.filter(business_profile=business_profile)
+        attendances = Attendance.objects.filter(business_profile=business_profile).order_by("-date")
         employee_id = request.query_params.get('employee_id')
         
         if employee_id:
             attendances = attendances.filter(employee_id=employee_id)
+        
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if start_date:
+            start_date = parse_date(start_date)
+            attendances = attendances.filter(date__gte=start_date)
+        
+        if end_date:
+            end_date = parse_date(end_date)
+            attendances = attendances.filter(date__lte=end_date)
 
         paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(attendances, request, view=self)
         total_length_before_pagination = attendances.count()
         total_pages = paginator.page.paginator.num_pages
-        serializer = AttendanceSerializer(result_page, many=True)
+        serializer = AttendanceWithEmployeeSerializer(result_page, many=True)
 
         if request.query_params.get("type") == "all":
             response = {
