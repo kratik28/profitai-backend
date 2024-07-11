@@ -678,7 +678,7 @@ class CustomerListCreateAPIView(APIView):
         if most_frequent == "1":
                 cus_queryset = cus_queryset.order_by("last_invoice_grand_total")
         if most_profitable == "1":
-                cus_queryset = cus_queryset.order_by("all_grand_total") # cus_queryset.order_by("total_profit")
+                cus_queryset = cus_queryset.filter(all_grand_total__gt=0).order_by("-all_grand_total") # cus_queryset.order_by("total_profit")
         if search:
                 cus_queryset = cus_queryset.filter( 
                       Q(customer_name__icontains=search)|
@@ -1429,7 +1429,7 @@ class DashboardAPIView(APIView):
         is_purchase_filter = request.GET.get('is_purchase', 0);
         # Filter invoices by business profile and customer ID
         invoice_data =Invoice.objects.filter(business_profile=business_profile, customer__isnull=False, is_deleted = False)
-
+    
         # Get sales data for the current month
         current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(
             day=TruncDay('order_date_time')
@@ -1472,10 +1472,10 @@ class DashboardAPIView(APIView):
         # Sort x_labels to ensure chronological order
         x_labels.sort()
        
-        products_data = Product.objects.all()
+        products_data = Product.objects.filter(business_profile=business_profile)
 
         # Calculate total sales by brand
-        total_sales_by_brand = Batches.objects.values('product__brand').annotate(
+        total_sales_by_brand = Batches.objects.filter(business_profile=business_profile).values('product__brand').annotate(
             value=Sum(
                 ExpressionWrapper(
                     F('sales_price') * F('remaining_quantity'),
@@ -1483,9 +1483,26 @@ class DashboardAPIView(APIView):
                 )
             )
         )
-
+        
+        # Calculate the total debit
+        total_debit = invoice_data.filter(
+            payment_type__in=["pay_later", "remain_payment"]
+        ).aggregate(
+                total_debit=Sum(
+                ExpressionWrapper(
+                    F('sub_total') - F('paid_amount'),
+                    output_field=DecimalField()
+                )
+            )
+        )
+        
+        today = current_datetime.date()
+        today_sales = invoice_data.filter(order_date_time__date=today).aggregate(total_cash=Sum('sub_total'))
+        
+        cash_in_hand = invoice_data.aggregate(total_cash=Sum('paid_amount'))
+       
         # Calculate total stock price
-        total_stock_price = Batches.objects.aggregate(
+        total_stock_price = Batches.objects.filter(business_profile=business_profile).aggregate(
             total_stock_price=Sum(
                 ExpressionWrapper(
                     F('sales_price') * F('remaining_quantity'),
@@ -1495,7 +1512,7 @@ class DashboardAPIView(APIView):
         )['total_stock_price'] or 0
 
         # Aggregate invoice data
-        total_sales_prices = invoice_data.aggregate(total=Sum('grand_total'))['total']
+        total_sales_prices = invoice_data.aggregate(total=Sum('sub_total'))['total']
 
         invoice_ids = invoice_data.values_list('id', flat=True)
         product_ids = InvoiceItem.objects.filter(invoice_id__in=invoice_ids).values_list('product_id', flat=True).distinct()
@@ -1529,7 +1546,10 @@ class DashboardAPIView(APIView):
             amount=Coalesce(Subquery(batches_sales_price, output_field=FloatField()), Value(0.0), output_field=FloatField())  # Use Coalesce to handle cases where there's no related batch
         ).distinct()
 
-        # Calculate profit margin
+        # Extract the total values
+        cash_in_hand_value = cash_in_hand['total_cash'] or 0
+        total_debit_value = total_debit['total_debit'] or 0
+        today_sales_value = today_sales['total_cash'] or 0
         total_sales_price = float(sum_query['total_sales_price'] or 0)
         total_purchase_price = float(sum_query['total_purchase_price'] or 0)
         absolute_profit_margin = (total_sales_price - total_purchase_price)
@@ -1551,6 +1571,9 @@ class DashboardAPIView(APIView):
                'profit_margin': 0.0 if total_sales_price == 0 else (absolute_profit_margin / total_sales_price) * 100,
                'absolute_profit_margin': absolute_profit_margin,
                'total_sales_price': (total_sales_prices or 0.0),
+               'total_debit_value': total_debit_value,
+               'cash_in_hand_value': cash_in_hand_value,
+               'today_sales_value': today_sales_value,
                'total_stock_price': total_stock_price
             }
         }
