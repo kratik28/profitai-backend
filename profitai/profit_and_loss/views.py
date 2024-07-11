@@ -67,6 +67,8 @@ class ProfitLossListView(APIView):
             group_by_field = 'invoice__customer__zipcode'
         elif group_by == 'product_brand':
             group_by_field = 'product__brand'
+        elif group_by == 'product_name':
+            group_by_field = 'product__product_name'
         else:
             return Response({"status": "error", "message": "Invalid group_by parameter"}, status=400)
 
@@ -87,7 +89,7 @@ class ProfitLossListView(APIView):
         overall_stats['overall_net_profit_percentage'] = (overall_stats['overall_net_profit'] / overall_stats['overall_gross_sales']) * 100 if overall_stats['overall_gross_sales'] else 0
 
         # Annotate and aggregate data
-        if group_by in ['customer', 'customer_zipcode', 'product_brand']:
+        if group_by in ['customer', 'customer_zipcode', 'product_brand', 'product_name']:
             data = invoice_items.values(group_by_field).annotate(
                 **{group_by: F(group_by_field)},
                 volume_of_invoice=Count('invoice', distinct=True),
