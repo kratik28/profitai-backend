@@ -183,6 +183,8 @@ class VendorCustomerSerializer(serializers.Serializer):
                 'gst_number': instance.gst_number,
                 'favourite': instance.favourite,
                 'email': instance.email,
+                'zipcode': instance.zipcode,
+                'address': instance.address,
                 'type': 'vendor'
             }
         elif isinstance(instance, Customer):
@@ -193,5 +195,7 @@ class VendorCustomerSerializer(serializers.Serializer):
                 'gst_number': instance.gst_number,
                 'favourite': instance.favourite,
                 'email': instance.email,
+                'zipcode': instance.zipcode,
+                'address': instance.address,
                 'type': 'customer'
             }
