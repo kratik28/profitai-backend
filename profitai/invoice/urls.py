@@ -12,5 +12,6 @@ urlpatterns = [
     path("api/invoice/search",invoice_view.InvoiceSearch().as_view(),name = "invoice-search"),
     path("api/invoice/sort/",invoice_view.InvoiceSort().as_view(),name = "invoice-sort"),
     path('api/invoice/analytics',invoice_view.InvoiceListChartView.as_view(),name='analytics'),
-    path('api/invoice/monthly-sales-analytics',invoice_view.InvoiceCustomerSalesAnalytics.as_view(),name='monthly-sales-analytics')
+    path('api/invoice/monthly-sales-analytics',invoice_view.InvoiceCustomerSalesAnalytics.as_view(),name='monthly-sales-analytics'),
+    path('api/invoice/invoice_month_wise-sales-analytics',invoice_view.InvoiceMonthlySalesAnalytics.as_view(),name='month-sales-analytics')
 ]

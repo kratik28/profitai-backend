@@ -14,7 +14,7 @@ from django.db.models import Q, Prefetch
 from user_profile.pagination import InfiniteScrollPagination
 from django.db import transaction
 from django.db.models import Sum
-from django.db.models.functions import TruncDay
+from django.db.models.functions import TruncDay, TruncMonth
 from django.utils import timezone
 import datetime
 from rest_framework.exceptions import ValidationError
@@ -992,6 +992,46 @@ class InvoiceCustomerSalesAnalytics(APIView):
                 'current_month': current_month_values,
                 'previous_month': previous_month_values,
                 'x_labels': x_labels
+            }
+        }
+
+        return Response(response)
+    
+    
+class InvoiceMonthlySalesAnalytics(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        # Get the business profile associated with the current user
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted = False).first()
+        
+        current_year = timezone.now().year
+        
+        invoices = Invoice.objects.filter(business_profile=business_profile, is_deleted = False, order_date_time__year=current_year)
+        
+        # Get the customerId from the request query parameters
+        customerId = request.GET.get("customerId")
+        
+        if customerId:
+            invoices= invoices.filter(customer=customerId);
+        
+        # Annotate invoices by month and year
+        monthly_data = (invoices
+                    .annotate(month=TruncMonth('order_date_time'))
+                    .values('month')
+                    .annotate(total_sub_total=Sum('sub_total'))
+                    .order_by('month'))
+
+        # Prepare the data for the response
+        month_data = [item['total_sub_total'] for item in monthly_data]
+        x_labels = [item['month'].strftime('%b %Y') for item in monthly_data]
+        
+        response = {
+            "status_code": 200,
+            "status": "success",
+            "message": "Invoice data retrieved successfully!",
+            'data': {
+                "month_data": month_data,
+                "x_labels": x_labels
             }
         }
 

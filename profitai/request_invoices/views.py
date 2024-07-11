@@ -97,6 +97,7 @@ class RequestInvoiceAPIView(APIView):
                 if not business_profile:
                     return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
 
+                request.data['business_profile'] = business_profile
                 request_invoice = get_object_or_404(RequestInvoice, pk=pk, business_profile=business_profile, is_deleted=False)
                 serializer = RequestInvoiceSerializer(request_invoice, data=request.data)
                 if serializer.is_valid():
