@@ -13,6 +13,11 @@ class Employee(models.Model):
     is_active = models.BooleanField(default=True)
     email = models.EmailField(max_length=254, unique=True, null=True)  # Add email field
     holidays = models.PositiveIntegerField(default=0)
+    gender = models.CharField(max_length=10, choices=[
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    ], default='other')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
