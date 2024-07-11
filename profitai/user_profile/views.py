@@ -1667,6 +1667,8 @@ class VendorCustomerListAPIView(APIView):
         name = request.GET.get('name', None)
         search = request.GET.get('search', None)
         favourite = request.GET.get('favourite', None)
+        customer_only = request.GET.get('customer_only', None) == 'true'
+        vendor_only = request.GET.get('vendor_only', None) == 'true'
         
         businessprofile = BusinessProfile.objects.filter(
             user_profile=request.user,
@@ -1674,28 +1676,54 @@ class VendorCustomerListAPIView(APIView):
             is_deleted=False
         ).first()
 
-        vendor_filters = Q(business_profile=businessprofile, is_active=True)
-        customer_filters = Q(business_profile=businessprofile, is_active=True)
+        if not businessprofile:
+            return Response({"status": "error", "message": "Business profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if search:
-            vendor_filters &= Q(vendor_name__icontains=search) | Q(phone_number__icontains=search) | Q(gst_number__icontains=search)
-            customer_filters &= Q(customer_name__icontains=search) | Q(phone_number__icontains=search) | Q(gst_number__icontains=search)
+        # Initialize the combined_queryset
+        combined_queryset = []
 
-        if favourite:
-            vendor_filters &= Q(favourite=True)
-            customer_filters &= Q(favourite=True)
-
-        vendor_queryset = Vendor.objects.filter(vendor_filters).annotate(
-            name=F('vendor_name'),
-            type=Value('vendor', output_field=CharField())
-        )
-
-        customer_queryset = Customer.objects.filter(customer_filters).annotate(
-            name=F('customer_name'),
-            type=Value('customer', output_field=CharField())
-        )
-
-        combined_queryset = list(chain(vendor_queryset, customer_queryset))
+        if customer_only:
+            customer_filters = Q(business_profile=businessprofile, is_active=True)
+            if search:
+                customer_filters &= Q(customer_name__icontains=search) | Q(phone_number__icontains=search) | Q(gst_number__icontains=search)
+            if favourite:
+                customer_filters &= Q(favourite=True)
+            customer_queryset = Customer.objects.filter(customer_filters).annotate(
+                name=F('customer_name'),
+                type=Value('customer', output_field=CharField())
+            )
+            combined_queryset = list(customer_queryset)
+        
+        elif vendor_only:
+            vendor_filters = Q(business_profile=businessprofile, is_active=True)
+            if search:
+                vendor_filters &= Q(vendor_name__icontains=search) | Q(phone_number__icontains=search) | Q(gst_number__icontains=search)
+            if favourite:
+                vendor_filters &= Q(favourite=True)
+            vendor_queryset = Vendor.objects.filter(vendor_filters).annotate(
+                name=F('vendor_name'),
+                type=Value('vendor', output_field=CharField())
+            )
+            combined_queryset = list(vendor_queryset)
+        
+        else:
+            vendor_filters = Q(business_profile=businessprofile, is_active=True)
+            customer_filters = Q(business_profile=businessprofile, is_active=True)
+            if search:
+                vendor_filters &= Q(vendor_name__icontains=search) | Q(phone_number__icontains=search) | Q(gst_number__icontains=search)
+                customer_filters &= Q(customer_name__icontains=search) | Q(phone_number__icontains=search) | Q(gst_number__icontains=search)
+            if favourite:
+                vendor_filters &= Q(favourite=True)
+                customer_filters &= Q(favourite=True)
+            vendor_queryset = Vendor.objects.filter(vendor_filters).annotate(
+                name=F('vendor_name'),
+                type=Value('vendor', output_field=CharField())
+            )
+            customer_queryset = Customer.objects.filter(customer_filters).annotate(
+                name=F('customer_name'),
+                type=Value('customer', output_field=CharField())
+            )
+            combined_queryset = list(chain(vendor_queryset, customer_queryset))
 
         # Apply sorting
         reverse = (name == 'descending')
