@@ -45,8 +45,8 @@ class BusinessProfile(models.Model):
     zipcode = models.CharField(max_length=10, null=True, default=None, blank=True)
     city = models.CharField(max_length=100, null=True, default=None, blank=True)
     state = models.CharField(max_length=100, null=True, default=None, blank=True)
-    address1 = models.CharField(max_length=100, null=True, default=None, blank=True)
-    address2 = models.CharField(max_length=100, null=True, default=None, blank=True)
+    address1 = models.CharField(max_length=200, null=True, default=None, blank=True)
+    address2 = models.CharField(max_length=200, null=True, default=None, blank=True)
     email = models.EmailField(blank=True)
     is_active = models.BooleanField(default=True)
     is_deleted = models.BooleanField(default=False)
@@ -59,7 +59,7 @@ class BusinessProfile(models.Model):
 class Customer(models.Model):
     business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=False)
     customer_name = models.CharField(max_length=50, null=False, default=None, blank=False)
-    address = models.CharField(max_length=100, null=False, default=None, blank=False)
+    address = models.CharField(max_length=200, null=False, default=None, blank=False)
     zipcode = models.CharField(max_length=100, null=False, default=None, blank=False)
     phone_number = models.CharField(max_length=20, null=False, default=None, blank=False)
     gst_number = models.CharField(max_length=50, null=True, default=None, blank=True)
@@ -75,7 +75,7 @@ class Customer(models.Model):
 class Vendor(models.Model):
     business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=False)
     vendor_name = models.CharField(max_length=50, null=False, default=None, blank=False)
-    address = models.CharField(max_length=100, null=False, default=None, blank=False)
+    address = models.CharField(max_length=200, null=False, default=None, blank=False)
     zipcode = models.CharField(max_length=100, null=False, default=None, blank=False)
     phone_number = models.CharField(max_length=20, null=False, default=None, blank=False)
     gst_number = models.CharField(max_length=50, null=True, default=None, blank=True)

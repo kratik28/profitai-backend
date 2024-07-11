@@ -540,7 +540,6 @@ class InvoiceOrderAPI(APIView):
             batch.remaining_quantity -= item["quantity"]
             batch.save()
             set_remaining_product_quantity(batch)
-        
         if invoice_item_data:
             InvoiceItem.objects.bulk_create(invoice_item_data)
             
@@ -681,13 +680,22 @@ class InvoiceOrderAPI(APIView):
                 return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
             
             invoice = get_object_or_404(Invoice, id=invoice_id, is_deleted=False)
-            invoice.delete()
+            if invoice:
+                delete_invoice_items(invoice)
+                invoice.delete()
             return Response({"status_code": 200, "status": "success", "message": "Invoice successfully deleted"})
         
         except Exception as e:
             return Response({"status_code": 500, "status": "error", "message": f"Internal server error: {e}"})  
         
-        
+def delete_invoice_items(invoice):
+    invoice_items = InvoiceItem.objects.filter(invoice=invoice)
+
+    for item in invoice_items:
+        batch = item.batch
+        batch.remaining_quantity += item.quantity
+        batch.save()    
+        # here we can delete invoice item as well 
          
 class InvoiceSearch(APIView):
     permission_classes = [IsAuthenticated]
