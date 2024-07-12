@@ -13,7 +13,7 @@
 </head>
 <body>
 
-<!-- Request Invoice start -->
+<!-- Invoice 2 start -->
 <div class="invoice-2 invoice-content"> 
     <header>
         <div class="header-line"></div>
@@ -22,16 +22,18 @@
         <div class="header_slide">
             <img src="{% static 'logo.png' %}">
         </div>
-        
         <table class="summary_table">
             <tr class="summary_tr">
-            
                 <td class="left">Invoice No.</td>
-                <td class="right">{{invoice.invoice_counter}}</td>
+                <td class="right">{{id}}</td>
             </tr>
             <tr class="summary_tr">
                 <td class="left">Date</td>
                 <td class="right">{{order_date|date:"M d, Y"}}</td>
+            </tr>
+            <tr class="summary_tr">
+                <td class="left">Payment Option:</td>
+                <td class="right">Cash</td>
             </tr>
         </table>
     </header>
@@ -46,34 +48,76 @@
     </div>
     <div class="company">
         <h4 class="inv-title-1">Invoice To</h4>
-        <h2 class="name">{{invoice.vendor.vendor_name}}</h2>
-        <p class="gst">+91 {{invoice.vendor.phone_number}}</p>
+        <h2 class="name">{{customer.customer_name}}</h2>
+        <p class="gst">+91 {{customer.phone_number}}</p>
         <p class="invo-addr-2">
-            <a href="mailto:{{invoice.vendor.email}}">{{invoice.vendor.email}}</a><br/>
-            {% if invoice.vendor.address%}
-            {{invoice.vendor.address}}<br/>
+            <a href="mailto:{{invoice.0.customer.email}}">{{customer.email}}</a><br/>
+            {% if customer.address%}
+            {{customer.address}}<br/>
             {% else %}
             {{business_profile.0.address1}}, {{business_profile.city}} {{business_profile.zipcode}}<br/>
             {% endif %}
         </p>
     </div>
+
     <div class="invoice-center">
         <div class="margin_10">
             <table class="table1">
                 <tr class="th1">
                     <th class="text-start">Product Name</th>
-                    <th class="text-start">Brand</th>
+                    <th class="text-center">Batch</th>
                     <th class="text-center">Qty.</th>
                 </tr>
-                {% for x in content|slice:"30" %}
+                {% for x in product_and_quantity|slice:"30" %}
                 <tr class="tr1">
-                    <td class="text-start">{{x.product_name}}</td>
-                    <td class="text-center">{{x.brand}}</td>
-                    <td class="text-center">{{x.qty}}</td>
+                    <td class="text-start">{{x.product.product_name}}</td>
+                    <td class="text-center">{{x.batch_id}}</td>
+                    <td class="text-center">{{x.quantity}}</td>
                 </tr>
                 {% endfor %}
             </table>         
         </div>
+        <table class="table1">
+            <tbody>
+            <tr
+            {% if flage == 'subtotal_bar' %}
+                class="break"
+            {% else %}
+                class="tr1"
+            {% endif %}
+            >
+                <td colspan="5" class="total" >SUBTOTAL</td>
+                <td class="total">{{sub_total}}</td>
+            </tr>
+            <tr>
+                <td colspan="5" class="sub-totel" >TAX</td>
+                <td class="sub-totel">{{invoice.tax}}</td>
+            </tr>
+            <tr class="tr1">
+                <td colspan="5" class="sub-totel" >DISCOUNT</td>
+                <td class="sub-totel">{{discount}}</td>
+            </tr>
+            {% if history%}
+            <tr class="tr1">
+                <td class="text-history">Payment History:</td>
+                <td colspan="4" class="grand">GRAND TOTAL</td>
+                <td class="grand">{{grand_total}}</td>
+            </tr>
+                <td class="previous">Previously Paid: {{history}}</td>
+                <td colspan="4" class="sub-totel" >TOTAL PAID</td>
+                <td class="sub-totel">{{sub_total}}</td>
+            </tr>
+            {% else %}
+            <tr class="tr1">
+                <td colspan="5" class="grand">GRAND TOTAL</td>
+                <td class="grand">{{grand_total}}</td>
+            </tr>
+                <td colspan="5" class="sub-totel" >TOTAL PAID</td>
+                <td class="sub-totel">{{sub_total}}</td>
+            </tr>
+            {% endif %}
+            </tbody>
+        </table>
     </div>
 
         {% if flage == 'busines_name' %}

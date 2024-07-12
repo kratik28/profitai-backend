@@ -12,10 +12,14 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from .models import RequestInvoice, RequestInvoiceProduct
 from .serializers import RequestInvoiceSerializer, RequestInvoiceProductSerializer
-from user_profile.models import BusinessProfile, Vendor
+from user_profile.models import BusinessProfile, Vendor, Customer
+from inventory.models import Product
 from request_invoices.utils import request_invoice_pdf_create
 from django.db.models import Q
 from datetime import datetime
+import os
+from django.conf import settings
+import random
 
 class RequestInvoiceAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -186,3 +190,76 @@ class RequestInvoiceAPIView(APIView):
         except Exception as e:
             print(f"Error: {e}")
             return Response({"status": "error", "message": f"Internal server error: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
+        
+class GenerateInvoicePDF(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data
+        
+        # Extract data from request
+        customer_id = data.get("customer")
+        sub_total = data.get("sub_total")
+        discount = data.get("discount")
+        grand_total = data.get("grand_total")
+        tax = data.get("tax")
+        product_and_quantity = data.get("product_and_quantity", [])
+
+        # Validate and create context
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+        if not business_profile:
+            return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
+        
+        customer = get_object_or_404(Customer, id=customer_id) if customer_id else None
+
+        # Fetch full product details
+        products_details = []
+        for item in product_and_quantity:
+            product_id = item.get("productId")
+            quantity = item.get("quantity")
+            batch_id = item.get("batchId")
+            
+            product = get_object_or_404(Product, id=product_id)
+            product_detail = {
+                'product': product,
+                'quantity': quantity,
+                'batch_id': batch_id
+            }
+            products_details.append(product_detail)
+
+        random_number = random.randint(1000, 9999)
+        context = {
+            'customer': customer,
+            'business_profile': business_profile,
+            'sub_total': sub_total,
+            'discount': discount,
+            'grand_total': grand_total,
+            'tax': tax,
+            'id': random_number,
+            'product_and_quantity': products_details,
+            'order_date': datetime.now()
+        }
+        
+        # Render HTML content
+        html_content = render_to_string('estimate_invoice.html', context, request=request)
+        
+        # Generate PDF
+        invoice_pdf = HTML(string=html_content, base_url=request.build_absolute_uri()).write_pdf(zoom=1.0)
+
+        # Save PDF to a file
+        reports_dir = os.path.join(settings.MEDIA_ROOT, 'reports')
+        os.makedirs(reports_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        file_name = f'invoice_{timestamp}_{random_number}.pdf'
+        file_path = os.path.join(reports_dir, file_name)
+        
+        with open(file_path, 'wb') as f:
+            f.write(invoice_pdf)
+        
+        file_url = request.build_absolute_uri(f'/media/reports/{file_name}')
+        
+        
+        return Response({"status": "success", "status_code": 200, "message": "Estimate Invoice generate successfully", "file_url": file_url}, status=status.HTTP_200_OK)
