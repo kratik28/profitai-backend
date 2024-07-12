@@ -14,6 +14,8 @@ from .models import RequestInvoice, RequestInvoiceProduct
 from .serializers import RequestInvoiceSerializer, RequestInvoiceProductSerializer
 from user_profile.models import BusinessProfile, Vendor
 from request_invoices.utils import request_invoice_pdf_create
+from django.db.models import Q
+from datetime import datetime
 
 class RequestInvoiceAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -89,6 +91,30 @@ class RequestInvoiceAPIView(APIView):
             return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
 
         request_invoices = RequestInvoice.objects.filter(business_profile=business_profile, is_deleted=False)
+        
+        # Get filter parameters
+        search = request.GET.get('search')
+        month = request.GET.get('month')
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        
+        if start_date and end_date:
+            request_invoices = request_invoices.filter(date_time__range=[start_date, end_date])
+            
+        if month:
+                try:
+                     month_date = datetime.strptime(month, '%Y-%m')
+                     request_invoices = request_invoices.filter(date_time__year=month_date.year, date_time__month=month_date.month)
+                except ValueError:
+                     return Response({"status_code": 400, "status": "error", "message": "Invalid month format. Use YYYY-MM."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if search:
+            request_invoices = request_invoices.filter(
+                Q(vendor__vendor_name__icontains=search) |
+                Q(invoice_counter__icontains=search) 
+            )
+        
+        
         serializer = RequestInvoiceSerializer(request_invoices, many=True)
         return Response({"status": "success", "status_code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
 
