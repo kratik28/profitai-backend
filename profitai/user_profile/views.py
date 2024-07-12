@@ -34,6 +34,8 @@ from django.db.models.functions import TruncDay
 import re
 from django.db.models.functions import Coalesce
 from itertools import chain
+from django.core.files.storage import default_storage
+
 
 def get_grand_total_and_status(customer, businessprofile):
     queryset = customer.annotate(
@@ -134,7 +136,8 @@ class CustomUserOTPLoginView(APIView):
                         "status": "success",
                         "message":"UserProflie Found Successfully!",
                         "token": tokens,
-                        "business_profile" : flag
+                        "business_profile" : flag,
+                        "profile_image": user.profile_image
                         }
                     elif flag==True and business_profile.is_active==False:
                         response = {
@@ -151,7 +154,8 @@ class CustomUserOTPLoginView(APIView):
                         "status": "success",
                         "message":"UserProflie Found Successfully!",
                         "token": tokens,
-                        "business_profile" : flag
+                        "business_profile" : flag,
+                        "profit_img": user
                         }
                     return Response(response, status=status.HTTP_200_OK)
                 else:
@@ -173,6 +177,30 @@ class ProtectedAPIView(APIView):
                          "status": "succses",
                         "message": 'You are authenticated',
                         "phone_number":phone_number}, status=status.HTTP_200_OK)
+        
+
+class ProfileImageUploadAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if 'profile_image' not in request.FILES:
+            return Response({"status_code": 400, "status": "error", "message": "No image file provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        profile_image = request.FILES['profile_image']
+        user_profile = UserProfile.objects.filter(id=request.user.id).first()
+        
+        if not user_profile:
+            return Response({"status_code": 404, "status": "error", "message": "User profile not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Delete the previous image if it exists
+        if user_profile.profile_image:
+            if default_storage.exists(user_profile.profile_image.path):
+                default_storage.delete(user_profile.profile_image.path)
+                
+        request.user.profile_image.save(profile_image.name, ContentFile(profile_image.read()), save=True)
+
+        image_url = request.build_absolute_uri(request.user.profile_image.url)
+        return Response({"status_code": 200, "status": "success", "message": "Profile image uploaded successfully", "image_url": image_url}, status=status.HTTP_200_OK)
 
 
 class BusinessProfileListCreateAPIView(APIView):
@@ -1497,31 +1525,40 @@ class DashboardAPIView(APIView):
         )
         
         today = current_datetime.date()
-        today_sales = invoice_data.filter(order_date_time__date=today).aggregate(total_cash=Sum('sub_total'))
         
+        today_sales = invoice_data.filter(order_date_time__date=today).aggregate(total_cash=Sum('sub_total'))
         cash_in_hand = invoice_data.aggregate(total_cash=Sum('paid_amount'))
        
         # Calculate total stock price
-        total_stock_price = Batches.objects.filter(business_profile=business_profile).aggregate(
+        stock_total = Batches.objects.filter(business_profile=business_profile).aggregate(
             total_stock_price=Sum(
                 ExpressionWrapper(
                     F('sales_price') * F('remaining_quantity'),
                     output_field=DecimalField()
                 )
+            ),
+            stock_profit_margin=Sum(
+                ExpressionWrapper(
+                    (F('sales_price')-F('purchase_price')) * F('remaining_quantity'),
+                    output_field=FloatField()
+                )
             )
-        )['total_stock_price'] or 0
+        )
 
         # Aggregate invoice data
         total_sales_prices = invoice_data.aggregate(total=Sum('sub_total'))['total']
-
+        
         invoice_ids = invoice_data.values_list('id', flat=True)
-        product_ids = InvoiceItem.objects.filter(invoice_id__in=invoice_ids).values_list('product_id', flat=True).distinct()
+        total_sales_product_price = InvoiceItem.objects.filter(invoice_id__in=invoice_ids).aggregate(
+        total_sales_product_price=Sum(
+            ExpressionWrapper(
+                F('batch__purchase_price') * F('quantity'),
+                output_field=DecimalField()
+            )
+          )
+        )['total_sales_product_price']
 
-        # Query to calculate the sum of sales_price and purchase_price
-        sum_query = Batches.objects.filter(product_id__in=product_ids).aggregate(
-            total_sales_price=Sum('sales_price'),
-            total_purchase_price=Sum('purchase_price')
-        )
+
 
         # Get the current month
         current_month = timezone.now().month
@@ -1550,15 +1587,20 @@ class DashboardAPIView(APIView):
         cash_in_hand_value = cash_in_hand['total_cash'] or 0
         total_debit_value = total_debit['total_debit'] or 0
         today_sales_value = today_sales['total_cash'] or 0
-        total_sales_price = float(sum_query['total_sales_price'] or 0)
-        total_purchase_price = float(sum_query['total_purchase_price'] or 0)
-        absolute_profit_margin = (total_sales_price - total_purchase_price)
+        total_sales_price = float(total_sales_prices or 0)
+        total_sales_product_price = float(total_sales_product_price or 0)
+        absolute_profit_margin = (total_sales_price - total_sales_product_price)
+        expected_absolute_profit_margin = (stock_total["stock_profit_margin"] + absolute_profit_margin) or 0
         
         response = {
             "status_code": 200,
             "status": "success",
             "message": "Invoice data retrieved successfully!",
             'data': {
+                'today_target_sales': {
+                    'today_sales_value': today_sales_value,
+                    'target_sales_value': 250000
+                },
                 'top_selling_products': top_selling_products,
                 'top_selling_items':TopSellingProductSerializer(top_selling_items,many= True).data,
                 'total_sales_by_brand': total_sales_by_brand,
@@ -1574,7 +1616,9 @@ class DashboardAPIView(APIView):
                'total_debit_value': total_debit_value,
                'cash_in_hand_value': cash_in_hand_value,
                'today_sales_value': today_sales_value,
-               'total_stock_price': total_stock_price
+               'total_stock_price': stock_total['total_stock_price'] or 0,
+               'expected_absolute_profit_margin': expected_absolute_profit_margin, # total sales profit + upcoming sales profit (after deducting purchases)
+               'expected_profit_margin': (expected_absolute_profit_margin / (total_sales_price+float(stock_total['total_stock_price']))) * 100, 
             }
         }
 

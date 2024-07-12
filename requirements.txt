@@ -12,12 +12,13 @@ djangorestframework-simplejwt
 fonttools
 html5lib
 indiapins
+pkg-config
 mysqlclient
 Pillow
 pycparser
 pydotplus
 pydyf
-
+pandas
 PyJWT
 pyparsing
 pyphen

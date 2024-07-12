@@ -5,7 +5,7 @@ class InvoiceItemData(admin.ModelAdmin):
     list_display = ('product_name','brand','qty')
 
 class InvoiceData(admin.ModelAdmin):
-    list_display = ('vendor_name','Invoice_pdf','invoice_counter','date_time')
+    list_display = ('vendor','Invoice_pdf','invoice_counter','date_time')
 
 admin.site.register(RequestInvoice, InvoiceData)
 admin.site.register(RequestInvoiceProduct, InvoiceItemData)

@@ -9,6 +9,7 @@ urlpatterns = [
     path('backend/logout/',jwt_views.TokenBlacklistView.as_view()),
     path('backend/tocken/refresh',jwt_views.TokenRefreshView.as_view(),name='token_refresh'),
     path('backend/protected/', user_profile_view.ProtectedAPIView.as_view(), name='protected_api'),
+    path('backend/upload-profile-image/', user_profile_view.ProfileImageUploadAPIView.as_view(), name='upload-profile-image'),
     path('backend/business-profile/', user_profile_view.BusinessProfileListCreateAPIView.as_view(), name='business-profile-list-create'),
     path('backend/business-all/', user_profile_view.BusinessProfileRetrieveUpdateDestroyAPIView.as_view(), name='business-profile-retrieve-update-destroy'),
     path('backend/business/deactivate/', user_profile_view.BusinessProfileDeactivate.as_view(),name="business-deactivate"),

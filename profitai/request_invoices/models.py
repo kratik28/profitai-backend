@@ -1,13 +1,13 @@
 from django.db import models
 import uuid
 import datetime
-from user_profile.models import BusinessProfile
+from user_profile.models import BusinessProfile, Vendor
 
 
 class RequestInvoice(models.Model):
     business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=False)
     date_time = models.DateTimeField(default=None, null=True, blank=True)
-    vendor_name = models.CharField(max_length=255, null=False, blank=False)
+    vendor= models.ForeignKey(Vendor, on_delete=models.CASCADE, null=False)
     is_deleted = models.BooleanField(default=False)
     Invoice_pdf = models.FileField(upload_to='request_invoice_pdf/', blank=True, null=True)
     invoice_counter = models.CharField(max_length=30, default=None, null=True, blank=True)
