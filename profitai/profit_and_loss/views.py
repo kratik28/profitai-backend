@@ -407,7 +407,7 @@ class ProfitLossCSVExcelAPIView(APIView):
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
         group_by = request.GET.get("group_by", "day")
-        file_type = request.GET.get("file_type", "csv")  # 'csv' or 'excel'
+        file_type = request.GET.get("file_type", "csv")  # 'csv' or 'xlsx'
         
         business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
         
@@ -564,8 +564,8 @@ class ProfitLossCSVExcelAPIView(APIView):
             file_name = f'{file_name}.csv'
             file_path = os.path.join(reports_dir, file_name)
             df.to_csv(file_path, index=False)
-        elif file_type == 'excel':
-            file_name = f'{file_name}.csv'
+        elif file_type == 'xlsx':
+            file_name = f'{file_name}.xlsx'
             file_path = os.path.join(reports_dir, file_name)
             df.to_excel(file_path, index=False)
 

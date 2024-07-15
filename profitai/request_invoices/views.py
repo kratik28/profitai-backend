@@ -101,7 +101,11 @@ class RequestInvoiceAPIView(APIView):
         month = request.GET.get('month')
         start_date = request.GET.get('start_date')
         end_date = request.GET.get('end_date')
-        
+        vendor = request.GET.get('vendor_id')
+    
+        if vendor:
+            request_invoices = request_invoices.filter(vendor=vendor) 
+            
         if start_date and end_date:
             request_invoices = request_invoices.filter(date_time__range=[start_date, end_date])
             

@@ -122,12 +122,11 @@ class CustomUserOTPLoginView(APIView):
                     # Generate JWT tokens
                     user.last_login = timezone.now()
                     user.save()
-                    query = UserProfile.objects.get(phone_number=phone_number)
 
                     tokens = UserTokenObtainPairSerializer.get_token(user)
-                    Dataserializer = UserProfileSerializer(query)
 
                     business_profile=BusinessProfile.objects.filter(user_profile_id = user.id, is_deleted = False).first()
+                    
                     flag = True if business_profile is not None else False
                     if flag==True and business_profile.is_active==True:
             
@@ -155,7 +154,7 @@ class CustomUserOTPLoginView(APIView):
                         "message":"UserProflie Found Successfully!",
                         "token": tokens,
                         "business_profile" : flag,
-                        "profit_img": user
+                        "profile_image": ""
                         }
                     return Response(response, status=status.HTTP_200_OK)
                 else:
