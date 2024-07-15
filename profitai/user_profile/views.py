@@ -135,7 +135,7 @@ class CustomUserOTPLoginView(APIView):
                         "message":"UserProflie Found Successfully!",
                         "token": tokens,
                         "business_profile" : flag,
-                        "profile_image": user.profile_image.url or ""
+                        "profile_image": user.profile_image.url if user.profile_image and user.profile_image.url else ""
                         }
                         print(response)
                     elif flag==True and business_profile.is_active==False:
