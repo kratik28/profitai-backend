@@ -95,7 +95,7 @@ class RequestInvoiceAPIView(APIView):
             return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
 
         is_cancelled = request.GET.get('is_cancelled', '0') == '1'
-        request_invoices = RequestInvoice.objects.filter(business_profile=business_profile, is_deleted=is_cancelled)
+        request_invoices = RequestInvoice.objects.filter(business_profile=business_profile, is_deleted=is_cancelled).order_by("-date_time")
         
         # Get filter parameters
         search = request.GET.get('search')
