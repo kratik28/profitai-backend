@@ -122,7 +122,6 @@ class CustomUserOTPLoginView(APIView):
                     # Generate JWT tokens
                     user.last_login = timezone.now()
                     user.save()
-
                     tokens = UserTokenObtainPairSerializer.get_token(user)
 
                     business_profile=BusinessProfile.objects.filter(user_profile_id = user.id, is_deleted = False).first()
@@ -136,8 +135,9 @@ class CustomUserOTPLoginView(APIView):
                         "message":"UserProflie Found Successfully!",
                         "token": tokens,
                         "business_profile" : flag,
-                        "profile_image": user.profile_image or ""
+                        "profile_image": user.profile_image.url or ""
                         }
+                        print(response)
                     elif flag==True and business_profile.is_active==False:
                         response = {
                         "status_code": 200,
