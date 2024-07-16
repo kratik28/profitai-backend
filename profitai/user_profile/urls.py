@@ -19,6 +19,7 @@ urlpatterns = [
     path('backend/userupdate/',user_profile_view.UserProfileUpdateview.as_view()),
     path("backend/costomer/search",user_profile_view.CustomerSearchAPI.as_view()),
     path("backend/costomer/favourite/add",user_profile_view.CustomerfavouriteAPI.as_view()),
+    path("backend/vendor/favourite/add",user_profile_view.VendorFavouriteAPI.as_view()),
     path("backend/costomer/filter",user_profile_view.CustomerFilterAPIView.as_view()),
     path("backend/costomer/sort",user_profile_view.CustomerSortAPIView.as_view()),
     path("backend/customer/favourite/frequent",user_profile_view.CustomerfavouriteFrequentTopAPI.as_view()),

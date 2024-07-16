@@ -8,7 +8,7 @@ from .serializers import TopSellingProductSerializer
 from master_menu.serializers import BusinessTypeSerializer, BusinessTypeSerializerList, IndustrySerializerList
 from user_profile.models import UserProfile, UserProfileOTP, BusinessProfile, Customer
 from user_profile.pagination import InfiniteScrollPagination
-from user_profile.serializers import  CustomerListSerializer, VendorCustomerSerializer, CustomerSortSerializer, VendorAllSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, VendorSerializer, UserProfileSerializer
+from user_profile.serializers import  CustomerListSerializer,VendorListSerializer, VendorCustomerSerializer, CustomerSortSerializer, VendorAllSerializer, CustomerallSerializer, UserProfileGetSerializer, UserProfileUpdateSerializer, UserTokenObtainPairSerializer, BusinessProfileSerializer, CustomerSerializer, VendorSerializer, UserProfileSerializer
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -16,6 +16,7 @@ from telesignenterprise.verify import VerifyClient
 from telesign.util import random_with_n_digits
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
 import random
 import datetime
 from user_profile.models import UserProfile, Vendor
@@ -1027,6 +1028,33 @@ class CustomerfavouriteAPI(APIView):
             return Response({"status_code": 500,
                     "status": "faild",
                     "message": "Customer not found"})
+            
+class VendorFavouriteAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    def patch(self, request):
+        id = request.data.get("id")
+        favourite = request.data.get("favourite")
+
+        if not id or favourite is None:
+            return Response({
+                "status_code": 400,
+                "status": "error",
+                "message": "Provide both 'favourite' and 'id' in the request data."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        vendor = get_object_or_404(Vendor, id=id)
+        vendor.favourite = favourite
+        vendor.save()
+
+        serializer = VendorListSerializer(vendor)
+        response = {
+            "status_code": 200,
+            "status": "success",
+            "message": "Vendor updated successfully",
+            "data": serializer.data
+        }
+        return Response(response)
+            
 class CustomerFilterAPIView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = InfiniteScrollPagination

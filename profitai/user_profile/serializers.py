@@ -95,6 +95,12 @@ class CustomerListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = ['id', "customer_name","address" ,"zipcode" ,"phone_number","gst_number" ,"favourite", "email","invoice_set"]
+        
+class VendorListSerializer(serializers.ModelSerializer):
+    invoice_set = InvoiceCustomerSerializer(many=True)
+    class Meta:
+        model = Vendor
+        fields = ['id', "vendor_name","address" ,"zipcode" ,"phone_number","gst_number" ,"favourite", "email","invoice_set"]
     
     def to_representation(self, instance):
         representation = super().to_representation(instance)
