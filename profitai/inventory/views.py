@@ -80,12 +80,14 @@ class ProductListCreateView(APIView):
                 product = product_serializer.save()
                 
                 batch_errors = []
+                batches = []
                 for batch_data in batches_data:
                     batch_data['business_profile'] = business_profile.id
                     batch_data['product'] = product.id
                     batch_serializer = BatchCreateSerializer(data=batch_data)
                     if batch_serializer.is_valid():
-                        batch_serializer.save()
+                       create_batch = batch_serializer.save()
+                       batches.append(create_batch)
                     else:
                         batch_errors.append(batch_serializer.errors)
                 
@@ -97,7 +99,8 @@ class ProductListCreateView(APIView):
                     "status_code": 200,
                     "status": "success",
                     "message": "Product and Batches created successfully!",
-                    "data": product_serializer.data
+                    "data": product_serializer.data,
+                    "batch": BatchSerializer(batches, many=True).data,
                 }
                 return Response(response, status=status.HTTP_200_OK)
             else:
@@ -212,16 +215,27 @@ class BatchCreateView(APIView):
                 return Response({"status_code": 400, "status": "error", "message": "Batches data is required"}, status=status.HTTP_400_BAD_REQUEST)
             
             batch_errors = []
-            created_batches = []
+            batches = []
             for batch_data in batches_data:
                 batch_data['business_profile'] = business_profile.id
                 batch_data['product'] = product.id
-                batch_serializer = BatchCreateSerializer(data=batch_data)
-                if batch_serializer.is_valid():
-                    batch = batch_serializer.save()
-                    created_batches.append(batch)
+                batch_number = batch_data.get('batch_number')
+
+                existing_batch = Batches.objects.filter(batch_number=batch_number,product_id=product.id, business_profile=business_profile.id).first()
+                if existing_batch:
+                    # Update existing batch
+                    existing_batch.total_quantity += batch_data.get('total_quantity', 0)
+                    existing_batch.remaining_quantity += batch_data.get('remaining_quantity', 0)
+                    existing_batch.save()
+                    batches.append(existing_batch)
                 else:
-                    batch_errors.append(batch_serializer.errors)
+                    # Create new batch
+                    batch_serializer = BatchCreateSerializer(data=batch_data)
+                    if batch_serializer.is_valid():
+                        created_batch = batch_serializer.save()
+                        batches.append(created_batch)
+                    else:
+                        batch_errors.append(batch_serializer.errors)
 
             if batch_errors:
                 transaction.set_rollback(True)
@@ -230,7 +244,7 @@ class BatchCreateView(APIView):
             return Response({"status_code": 200,
                              "status": "success", 
                              "message": "Batches created successfully!", 
-                             "data": BatchSerializer(created_batches, many=True).data,
+                             "data": BatchSerializer(batches, many=True).data,
                             }, status=status.HTTP_200_OK)
         except Exception as e:
             print(f"Error: {e}")

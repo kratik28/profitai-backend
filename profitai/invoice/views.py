@@ -947,6 +947,18 @@ class InvoiceCustomerSalesAnalytics(APIView):
         if customerId:
             invoice_data= invoice_data.filter(customer=customerId);
         
+        # Calculate total sales, total outstanding, total cash, and total credit
+        totals = invoice_data.aggregate(
+            total_sales=Sum('sub_total'),
+            total_outstanding=Sum('remaining_total'),
+            total_cash=Sum('paid_amount'),
+            total_credit=Sum('remaining_total', filter=Q(payment_type='pay_later'))
+        )
+
+        total_sales = totals['total_sales'] or 0
+        total_outstanding = totals['total_outstanding'] or 0
+        total_cash = totals['total_cash'] or 0
+        total_credit = totals['total_credit'] or 0
 
         # Get sales data for the current month
         current_month_data = invoice_data.filter(order_date_time__range=(current_month_start, current_month_end)).annotate(
@@ -995,6 +1007,10 @@ class InvoiceCustomerSalesAnalytics(APIView):
             "status": "success",
             "message": "Invoice data retrieved successfully!",
             'data': {
+                'total_sales': total_sales,
+                'total_outstanding': total_outstanding,
+                'total_cash': total_cash,
+                'total_credit': total_credit,
                 'previous_month_data': previous_month_values,
                 'current_month_data': current_month_values,
                 'current_month': current_month_values,
