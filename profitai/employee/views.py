@@ -226,9 +226,12 @@ class MarkAllAttendanceView(APIView):
 
             employees = Employee.objects.filter(business_profile=business_profile)
             attendance_errors = []
-
+            attendances = []
             for employee in employees:
-                if not Attendance.objects.filter(business_profile=business_profile, employee=employee, date=date).exists():
+                existing_record = Attendance.objects.filter(business_profile=business_profile, employee=employee, date=date).first()
+                if existing_record:
+                    attendances.append(existing_record)
+                else:
                     attendance_data = {
                         "business_profile": business_profile.id,
                         "employee": employee.id,
@@ -238,7 +241,8 @@ class MarkAllAttendanceView(APIView):
                     }
                     attendance_serializer = AttendanceSerializer(data=attendance_data)
                     if attendance_serializer.is_valid():
-                        attendance_serializer.save()
+                        new_record = attendance_serializer.save()
+                        attendances.append(new_record)
                     else:
                         attendance_errors.append({employee.id: attendance_serializer.errors})
 
@@ -246,7 +250,7 @@ class MarkAllAttendanceView(APIView):
                 transaction.set_rollback(True)
                 return Response({"status_code": 400, "status": "error", "message": "Attendance creation failed", "errors": attendance_errors}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response({"status_code": 200, "status": "success", "message": "Attendance marked successfully for all employees!"}, status=status.HTTP_200_OK)
+            return Response({"status_code": 200, "status": "success", "data": AttendanceSerializer(attendances, many=True).data,  "message": "Attendance marked successfully for all employees!"}, status=status.HTTP_200_OK)
         except Exception as e:
             print(f"Error: {e}")
             return Response({"status_code": 500, "status": "error", "message": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
