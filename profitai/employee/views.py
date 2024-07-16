@@ -8,6 +8,8 @@ from user_profile.models import BusinessProfile
 from user_profile.pagination import InfiniteScrollPagination
 from django.db.models import Q
 from django.utils.dateparse import parse_date
+from django.db import transaction
+
 
 class EmployeeListCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -203,3 +205,48 @@ class AttendanceRetrieveUpdateDestroyView(APIView):
             return Response({"status": "error", "message": "Attendance not found."}, status=status.HTTP_404_NOT_FOUND)
         attendance.delete()
         return Response({"status": "success", "message": "Attendance deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+    
+    
+    
+class MarkAllAttendanceView(APIView):
+    @transaction.atomic
+    def post(self, request):
+        try:
+            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+            if not business_profile:
+                return Response({"status_code": 400, "status": "error", "message": "Business profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+            date_str = request.data.get('date')
+            if not date_str:
+                return Response({"status_code": 400, "status": "error", "message": "Date is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            date = parse_date(date_str)
+            if not date:
+                return Response({"status_code": 400, "status": "error", "message": "Invalid date format"}, status=status.HTTP_400_BAD_REQUEST)
+
+            employees = Employee.objects.filter(business_profile=business_profile)
+            attendance_errors = []
+
+            for employee in employees:
+                if not Attendance.objects.filter(business_profile=business_profile, employee=employee, date=date).exists():
+                    attendance_data = {
+                        "business_profile": business_profile.id,
+                        "employee": employee.id,
+                        "date": date,
+                        "check_in_time": "09:00:00",  # Default check-in time
+                        "status": "Present"  # Default status
+                    }
+                    attendance_serializer = AttendanceSerializer(data=attendance_data)
+                    if attendance_serializer.is_valid():
+                        attendance_serializer.save()
+                    else:
+                        attendance_errors.append({employee.id: attendance_serializer.errors})
+
+            if attendance_errors:
+                transaction.set_rollback(True)
+                return Response({"status_code": 400, "status": "error", "message": "Attendance creation failed", "errors": attendance_errors}, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({"status_code": 200, "status": "success", "message": "Attendance marked successfully for all employees!"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(f"Error: {e}")
+            return Response({"status_code": 500, "status": "error", "message": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
