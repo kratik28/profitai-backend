@@ -22,8 +22,12 @@
         <div class="header_slide">
             <img src="{% static 'logo.png' %}">
         </div>
-        <div class="gst_number">GSTIN:{{ business_profile.0.gst_number|default:'---' }}<div>
-        <table class="summary_table">
+        <div class="summary_table">
+            <div>  
+                <h4 class="left">GSTIN: {{ business_profile.gst_number | default:'---' }}</h4>
+            </div>
+        <div>
+        <table class="summary_table" style="margin: 5px 15px 0px 10px;">
             <tr class="summary_tr">
                 <td class="left">Invoice No.</td>
                 <td class="right">{{invoice.invoice_counter}}</td>
@@ -68,28 +72,29 @@
                     <th class="text-start">Product Name</th>
                     <th class="text-center">HSN</th>
                     <th class="text-center">Batch</th>
-                    <th class="text-center">Exp.</th>
-                    <th class="text-center">Quty.</th>
-                    <th class="text-end">Mrp.</th>
+                    <th class="text-center">Exp</th>
+                    <th class="text-center">Qty</th>
+                    <th class="text-end">MRP</th>
                     <th class="text-center">Rate</th>
                     <th class="text-center">CGST</th>
                     <th class="text-center">SGST</th>
-                    <th class="text-center">Disc%</th>
+                    <th class="text-center">Disc %</th>
                     <th class="text-end">Amount</th>
                 </tr>
                 {% for x in content|slice:"30" %}
                 <tr class="tr1">
-                    <td class="text-start">{{x.0.product_name}}</td>
-                    <td class="text-center">{{x.0.hsn_number}}</td>
-                    <td class="text-end">{{x.0.batch_number}}</td>
-                    <td class="text-center">{% with parts=x.0.expiry_date|cut:"T" %}{{ parts|slice:"2:7" }}{% endwith %}</td>
-                    <td class="text-center">{{x.1.quantity}}</td>
-                    <td class="text-end">{{x.0.mrp_price}}</td>
-                    <td class="text-end">{{x.0.sales_price|floatformat:2}}</td>
-                    <td class="text-center">{{x.0.tax}}</td>
-                    <td class="text-center">{{x.0.tax}}</td>
-                    <td class="text-center">{{x.0.discount}}</td>
-                    <td class="text-end">{{x.0.price}}</td>
+                    
+                    <td class="text-start">{{x.product.product_name}}</td>
+                    <td class="text-center">{{x.batch.hsn_number}}</td>
+                    <td class="text-center">{{x.batch.batch_number}}</td>
+                    <td class="text-center">{% with parts=x.batch.expiry_date|cut:"T" %}{{ parts|slice:"2:7" }}{% endwith %}</td>
+                    <td class="text-center">{{x.quantity}}</td>
+                    <td class="text-center">{{x.batch.mrp_price}}</td>
+                    <td class="text-center">{{x.batch.sales_price|floatformat:2}}</td>
+                    <td class="text-center">{{x.batch.tax}}</td>
+                    <td class="text-center">{{x.batch.tax}}</td>
+                    <td class="text-center">{{x.batch.discount}}</td>
+                    <td class="text-end">{{x.price}}</td>
                 </tr>
                 {% endfor %}
             </table>         

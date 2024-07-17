@@ -1596,8 +1596,11 @@ class DashboardAPIView(APIView):
         ).values('product_id').annotate(
             total_quantity=Sum('quantity')
         ).order_by('-total_quantity')[:10]
+        
 
+        # Extract product IDs and quantities
         top_selling_product_ids = [item['product_id'] for item in top_selling_products]
+        product_quantities = {item['product_id']: item['total_quantity'] for item in top_selling_products}
 
         # Get the sales price of the first related batch and specify the output_field as FloatField
         batches_sales_price = Batches.objects.filter(
@@ -1609,6 +1612,17 @@ class DashboardAPIView(APIView):
             name=F('product_name'),  # Rename product_name as name
             amount=Coalesce(Subquery(batches_sales_price, output_field=FloatField()), Value(0.0), output_field=FloatField())  # Use Coalesce to handle cases where there's no related batch
         ).distinct()
+        
+        # Prepare the final list of top selling items
+        top_selling_items_list = [
+        {
+           "id": item.id,
+           "name": item.name,
+           "amount": item.amount,
+           "total_selling_quantity": product_quantities[item.id]
+        }
+        for item in top_selling_items
+        ]
 
         # Extract the total values
         cash_in_hand_value = cash_in_hand['total_cash'] or 0
@@ -1629,7 +1643,7 @@ class DashboardAPIView(APIView):
                     'target_sales_value': 250000
                 },
                 'top_selling_products': top_selling_products,
-                'top_selling_items':TopSellingProductSerializer(top_selling_items,many= True).data,
+                'top_selling_items': top_selling_items_list,
                 'total_sales_by_brand': total_sales_by_brand,
                 'sales_graph': {
                    'current_month_data': current_month_values,

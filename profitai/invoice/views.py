@@ -467,18 +467,18 @@ class InvoiceOrderAPI(APIView):
                 )
                 
                 # Create invoice items and update batch quantities
-                self.create_invoice_items(invoice, product_ids)
+                items = self.create_invoice_items(invoice, product_ids)
                 
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
-                invoice_item_data = InvoiceItemSerializer(invoice.invoiceitem_set.all(), many=True).data
+                # invoice_item_data = InvoiceItemSerializer(invoice.invoiceitem_set.all(), many=True).data
                 invoice_data = InvoiceCreateSerializer(invoice).data
                 id_range = range(1, len(product_quantity) + 1)
-                content = list(zip(product_quantity, invoice_item_data, id_range))
+                # content = list(zip(product_quantity, invoice_item_data, id_range))
                 
                 data = {
                     "invoice": invoice_data,
-                    "content": content,
+                    "content": items,
                     "order_date": timezone.now(),
                     "business_profile": business_profile,
                     "customer": customer,
@@ -541,7 +541,8 @@ class InvoiceOrderAPI(APIView):
             batch.save()
             set_remaining_product_quantity(batch)
         if invoice_item_data:
-            InvoiceItem.objects.bulk_create(invoice_item_data)
+            items = InvoiceItem.objects.bulk_create(invoice_item_data)
+            return items
             
     def put(self, request):
         try:
