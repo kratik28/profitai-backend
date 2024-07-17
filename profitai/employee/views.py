@@ -195,8 +195,8 @@ class AttendanceRetrieveUpdateDestroyView(APIView):
             return Response({"status": "error", "message": "Attendance not found."}, status=status.HTTP_404_NOT_FOUND)
         serializer = AttendanceSerializer(attendance, data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response({"status": "success", "message": "Attendance updated successfully.", "data": serializer.data})
+            data = serializer.save()
+            return Response({"status": "success", "message": "Attendance updated successfully.", "data": AttendanceWithEmployeeSerializer(data).data})
         return Response({"status": "error", "message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, employee_id, pk):
