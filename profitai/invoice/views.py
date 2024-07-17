@@ -471,10 +471,8 @@ class InvoiceOrderAPI(APIView):
                 
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
-                # invoice_item_data = InvoiceItemSerializer(invoice.invoiceitem_set.all(), many=True).data
                 invoice_data = InvoiceCreateSerializer(invoice).data
                 id_range = range(1, len(product_quantity) + 1)
-                # content = list(zip(product_quantity, invoice_item_data, id_range))
                 
                 data = {
                     "invoice": invoice_data,
@@ -614,40 +612,21 @@ class InvoiceOrderAPI(APIView):
                 existing_invoice_items.delete()
 
                 # Create new invoice items and update batch quantities
-                self.create_invoice_items(invoice, product_ids)
+                items = self.create_invoice_items(invoice, product_ids)
 
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
-                invoice_item_data = InvoiceItemSerializer(invoice.invoiceitem_set.all(), many=True).data
                 invoice_data = InvoiceCreateSerializer(invoice).data
                 id_range = range(1, len(product_quantity) + 1)
-                content = []
-                for item, invoice_item, id_number in zip(product_quantity, invoice_item_data, id_range):
-                    batch = Batches.objects.get(id=item['batchId'])
-                    product = batch.product
-                    product_info = {
-                        "product_name": product.product_name,
-                        "hsn_number": batch.hsn_number,
-                        "batch_number": batch.batch_number,
-                        "expiry_date": batch.expiry_date.strftime('%Y-%m-%d'),
-                        "quantity": invoice_item['quantity'],
-                        "mrp_price": batch.mrp_price,
-                        "sales_price": batch.sales_price,
-                        "tax": invoice.tax,
-                        "discount": invoice.discount,
-                        "price": invoice_item['price']
-                    }
-                    content.append((product_info, id_number))
-
+                
                 data = {
                     "invoice": invoice_data,
-                    "content": content,
+                    "content": items,
                     "order_date": timezone.now(),
                     "business_profile": business_profile,
                     "customer": customer,
                     "flage": page_break(id_range),
                 }
-
                 # Generate invoice PDF
                 invoice_id = invoice.id
                 invoices = invoice_pdf_create(request, data, invoice_id)
