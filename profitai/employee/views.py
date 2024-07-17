@@ -250,7 +250,7 @@ class MarkAllAttendanceView(APIView):
                 transaction.set_rollback(True)
                 return Response({"status_code": 400, "status": "error", "message": "Attendance creation failed", "errors": attendance_errors}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response({"status_code": 200, "status": "success", "data": AttendanceSerializer(attendances, many=True).data,  "message": "Attendance marked successfully for all employees!"}, status=status.HTTP_200_OK)
+            return Response({"status_code": 200, "status": "success", "data": AttendanceWithEmployeeSerializer(attendances, many=True).data,  "message": "Attendance marked successfully for all employees!"}, status=status.HTTP_200_OK)
         except Exception as e:
             print(f"Error: {e}")
             return Response({"status_code": 500, "status": "error", "message": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
