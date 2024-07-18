@@ -403,6 +403,266 @@ class InvoiceRetrieveUpdateDestroyAPIView(APIView):
 #                 "message": f"Internal server error: {e}"
 #             }
 #             return Response(response)
+
+class PurchaseInvoiceAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            with transaction.atomic():
+                data = request.data
+
+                # Extract data from request
+                product_quantity = data.pop("product_and_quantity", [])
+                vendor_id = data.get("vendor")
+                payment_type = data.get("payment_type")
+                payment_option = data.get("payment_option")
+                paid_amount = data.get("paid_amount", 0.00)
+                tax = data.get("tax", 0.00)
+                discount = data.get("discount", 0.00)
+                grand_total = data.get("grand_total", 0.00)
+                remaining_total = data.get("remaining_total", grand_total)
+                sub_total = data.get("sub_total", 0.00)
+                invoice_counter = data.get("invoice_counter")
+                ewaybill_number = data.get("ewaybill_number")
+                description = data.get("description")
+
+                # Ensure vendor_id is provided
+                if not vendor_id:
+                    return Response({"status_code": 400, "status": "error", "message": "vendor_id must be provided"})
+
+                # Validate payment type
+                valid_payment_types = ["pay_later", "remain_payment", "paid"]
+                if payment_type not in valid_payment_types:
+                    return Response({"status_code": 400, "status": "error", "message": "Please select a valid payment type"})
+
+                # Get business profile
+                business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+                if not business_profile:
+                    return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
+
+                vendor = get_object_or_404(Vendor, id=vendor_id, business_profile=business_profile ) if vendor_id else None
+
+                # Create invoice
+                invoice = Invoice.objects.create(
+                    business_profile=business_profile,
+                    vendor=vendor,
+                    is_purchase=True,
+                    payment_type=payment_type,
+                    payment_option=payment_option,
+                    grand_total=grand_total,
+                    sub_total=sub_total,
+                    paid_amount=paid_amount,
+                    discount=discount,
+                    tax=tax,
+                    status=200,
+                    remaining_total=remaining_total,
+                    invoice_counter=invoice_counter,
+                    order_date_time=timezone.now(),
+                    ewaybill_number=ewaybill_number,
+                    description=description
+                )
+
+                # Create invoice items and batches
+                items = self.create_invoice_items(invoice, product_quantity)
+
+                # Prepare response data
+                current_domain = request.build_absolute_uri('/media').rstrip('/')
+                invoice_data = InvoiceCreateSerializer(invoice).data
+                id_range = range(1, len(product_quantity) + 1)
+                
+                data = {
+                    "invoice": invoice_data,
+                    "content": items,
+                    "order_date": timezone.now(),
+                    "business_profile": business_profile,
+                    "customer": vendor,
+                    "flag": page_break(id_range),
+                }
+                # Generate invoice PDF
+                invoices = invoice_pdf_create(request, data, invoice.id)
+                # Prepare response
+                response = {
+                    "status_code": 200,
+                    "status": "success",
+                    "message": "Invoice order data",
+                    "invoice": InvoiceCreateSerializer(invoices, context={'current_domain': current_domain}).data,
+                }
+                return Response(response)
+
+        except ValidationError as e:
+            return Response({"status_code": 400, "status": "error", "message": str(e)})
+
+        except Exception as e:
+            print(f"Error: {e}")
+            return Response({"status_code": 500, "status": "error", "message": f"Internal server error: {e}"})
+
+    def create_invoice_items(self, invoice, product_batch):
+        invoice_item_data = []
+        for item in product_batch:
+            batch_data = item["batch"]
+            batch = Batches.objects.create(
+                product_id=item["productId"],
+                business_profile=invoice.business_profile,
+                **batch_data
+            )
+            product = batch.product
+            price = float(batch.sales_price) * batch_data["total_quantity"]
+            invoice_item_data.append(InvoiceItem(
+                invoice=invoice,
+                product=product,
+                price=price,
+                deal_quantity=batch_data["deal_quantity"],
+                quantity=batch_data["total_quantity"],
+                is_deleted=False,
+                batch=batch
+            ))
+        if invoice_item_data:
+            items = InvoiceItem.objects.bulk_create(invoice_item_data)
+            return items
+
+
+    def put(self, request, invoice_id):
+        try:
+            with transaction.atomic():
+                
+                data = request.data
+                
+                # Get business profile
+                business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+               
+                if not business_profile:
+                    return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+                vendor_id = data.get("vendor")
+                # Ensure vendor_id is provided
+                if not vendor_id:
+                    return Response({"status_code": 400, "status": "error", "message": "vendor_id must be provided"}, status=status.HTTP_400_BAD_REQUEST)
+                
+                vendor = get_object_or_404(Vendor, id=vendor_id)
+                
+                # Fetch the existing invoice
+                invoice = get_object_or_404(Invoice, id=invoice_id, is_purchase=True, vendor=vendor)
+
+                product_quantity = data.pop("product_and_quantity", [])
+                payment_type = data.get("payment_type", invoice.payment_type)
+                payment_option = data.get("payment_option", invoice.payment_option)
+                paid_amount = data.get("paid_amount", invoice.paid_amount)
+                tax = data.get("tax", invoice.tax)
+                discount = data.get("discount", invoice.discount)
+                grand_total = data.get("grand_total", invoice.grand_total)
+                remaining_total = data.get("remaining_total", grand_total)
+                sub_total = data.get("sub_total", invoice.sub_total)
+                invoice_counter = data.get("invoice_counter", invoice.invoice_counter)
+                ewaybill_number = data.get("ewaybill_number", invoice.ewaybill_number)
+                description = data.get("description", invoice.description)
+
+                # Validate payment type
+                valid_payment_types = ["pay_later", "remain_payment", "paid"]
+                if payment_type not in valid_payment_types:
+                    return Response({"status_code": 400, "status": "error", "message": "Please select a valid payment type"}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Update invoice
+                invoice.payment_type = payment_type
+                invoice.payment_option = payment_option
+                invoice.grand_total = grand_total
+                invoice.sub_total = sub_total
+                invoice.paid_amount = paid_amount
+                invoice.discount = discount
+                invoice.tax = tax
+                invoice.remaining_total = remaining_total
+                invoice.invoice_counter = invoice_counter
+                invoice.ewaybill_number = ewaybill_number
+                invoice.description = description
+                invoice.save()
+                # Update invoice items and batches
+                self.update_invoice_items(invoice, product_quantity)
+
+                # Prepare response data
+                current_domain = request.build_absolute_uri('/media').rstrip('/')
+                invoice_data = InvoiceCreateSerializer(invoice).data
+                id_range = range(1, len(product_quantity) + 1)
+
+                data = {
+                    "invoice": invoice_data,
+                    "order_date": timezone.now(),
+                    "business_profile": business_profile,
+                    "customer": vendor,
+                    "flag": page_break(id_range),
+                }
+
+                # Prepare response
+                response = {
+                    "status_code": 200,
+                    "status": "success",
+                    "message": "Invoice updated successfully",
+                    "invoice": InvoiceCreateSerializer(invoice, context={'current_domain': current_domain}).data,
+                }
+                return Response(response, status=status.HTTP_200_OK)
+
+        except ValidationError as e:
+            return Response({"status_code": 400, "status": "error", "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            print(f"Error: {e}")
+            return Response({"status_code": 500, "status": "error", "message": f"Internal server error: {e}"})
+
+    def update_invoice_items(self, invoice, product_quantity):
+        # Delete existing invoice items for the invoice
+        InvoiceItem.objects.filter(invoice=invoice).delete()
+
+        invoice_item_data = []
+        
+        for item in product_quantity:
+            batch_data = item.get("batch", {})
+            batchId = batch_data.get('id', None)
+            if not batchId:
+                productId = item.get("productId")
+                batch_data["product"] = Product.objects.filter(id=productId).first();
+    
+            # Update or create Batch object
+            batch, created = Batches.objects.update_or_create(
+                pk=batchId,
+                defaults=batch_data
+            )
+            
+            product = batch.product
+            price = float(batch.sales_price) * batch.total_quantity
+            print(product)
+            invoice_item = InvoiceItem(
+                invoice=invoice,
+                product=product,
+                price=price,
+                deal_quantity=item.get("deal_quantity", batch.deal_quantity),
+                quantity = batch.total_quantity,
+                is_deleted=False,
+                batch=batch
+            )
+            
+            invoice_item_data.append(invoice_item)
+        
+        # Bulk create all new invoice items
+        if invoice_item_data:
+            InvoiceItem.objects.bulk_create(invoice_item_data)
+            
+    def delete(self, request, invoice_id):
+        try:
+            # Get business profile
+            business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
+            if not business_profile:
+                return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
+            
+            invoice = get_object_or_404(Invoice, id=invoice_id, is_deleted=False, business_profile=business_profile)
+            if invoice:
+                InvoiceItem.objects.filter(invoice=invoice).delete() # invoice items permanently
+                invoice.delete()
+                
+            return Response({"status_code": 200, "status": "success", "message": "Invoice successfully deleted"})
+        
+        except Exception as e:
+            return Response({"status_code": 500, "status": "error", "message": f"Internal server error: {e}"})  
+                    
+
 class InvoiceOrderAPI(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -414,7 +674,6 @@ class InvoiceOrderAPI(APIView):
                 # Extract data from request
                 product_quantity = data.pop("product_and_quantity", [])
                 customer_id = data.get("customer")
-                vendor_id = data.get("vendor")
                 payment_type = data.get("payment_type")
                 payment_option = data.get("payment_option")
                 paid_amount = data.get("paid_amount", 0.00)
@@ -423,10 +682,11 @@ class InvoiceOrderAPI(APIView):
                 grand_total = data.get("grand_total", 0.00)
                 remaining_total = data.get("remaining_total", grand_total)
                 sub_total = data.get("sub_total", 0.00)
+                invoice_counter = data.get("invoice_counter")
 
                 # Ensure at least one of customer_id or vendor_id is provided
-                if not customer_id and not vendor_id:
-                    return Response({"status_code": 400, "status": "error", "message": "Either customer_id or vendor_id must be provided"})
+                if not customer_id:
+                    return Response({"status_code": 400, "status": "error", "message": "customer_id must be provided"})
 
                 # Validate payment type
                 valid_payment_types = ["pay_later", "remain_payment", "paid"]
@@ -443,17 +703,12 @@ class InvoiceOrderAPI(APIView):
 
                 # Get customer or vendor
                 customer = get_object_or_404(Customer, id=customer_id) if customer_id else None
-                vendor = get_object_or_404(Vendor, id=vendor_id) if vendor_id else None
-
-                # Determine if it's a purchase
-                is_purchase = bool(vendor_id)
                 
                 # Create invoice
                 invoice = Invoice.objects.create(
                     business_profile=business_profile,
                     customer=customer,
-                    vendor=vendor,
-                    is_purchase=is_purchase,
+                    is_purchase=False,
                     payment_type=payment_type,
                     payment_option=payment_option,
                     grand_total=grand_total,
@@ -463,6 +718,7 @@ class InvoiceOrderAPI(APIView):
                     tax=tax,
                     status=200,
                     remaining_total=remaining_total,
+                    invoice_counter=invoice_counter,
                     order_date_time=timezone.now()
                 )
                 
@@ -551,7 +807,6 @@ class InvoiceOrderAPI(APIView):
                 # Extract data from request
                 product_quantity = request.data.pop("product_and_quantity", [])
                 customer_id = request.data.get("customer")
-                vendor_id = request.data.get("vendor")
                 payment_type = request.data.get("payment_type")
                 payment_option = request.data.get("payment_option")
                 paid_amount = request.data.get("paid_amount", 0.00)
@@ -582,16 +837,12 @@ class InvoiceOrderAPI(APIView):
                 business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False).first()
                  # Get customer or vendor
                 customer = get_object_or_404(Customer, id=customer_id) if customer_id else None
-                vendor = get_object_or_404(Vendor, id=vendor_id) if vendor_id else None
                 
-                 # Determine if it's a purchase
-                is_purchase = bool(vendor_id)
 
                 # Update invoice fields
                 invoice.business_profile = business_profile
                 invoice.customer = customer
-                invoice.vendor = vendor
-                invoice.is_purchase = is_purchase
+                invoice.is_purchase = False
                 invoice.payment_type = payment_type
                 invoice.payment_option = payment_option
                 invoice.grand_total = grand_total
@@ -659,7 +910,7 @@ class InvoiceOrderAPI(APIView):
             if not business_profile:
                 return Response({"status_code": 400, "status": "error", "message": "Active business profile not found"})
             
-            invoice = get_object_or_404(Invoice, id=invoice_id, is_deleted=False)
+            invoice = get_object_or_404(Invoice, id=invoice_id, is_deleted=False, business_profile=business_profile)
             if invoice:
                 delete_invoice_items(invoice)
                 invoice.delete()

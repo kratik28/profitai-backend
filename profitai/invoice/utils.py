@@ -39,7 +39,6 @@ def invoice_pdf_create(request,cont,id):
     Invoice_pdf = HTML(string=html_content, base_url=request.build_absolute_uri()).write_pdf(zoom=1.0)
     with default_storage.open(file_name, 'wb') as pdf_file:
         pdf_file.write(Invoice_pdf)
-
     instance_to_update.Invoice_pdf.save(file_name, ContentFile(Invoice_pdf), save=True)
     pdf_url = request.build_absolute_uri(instance_to_update.Invoice_pdf.url)
 

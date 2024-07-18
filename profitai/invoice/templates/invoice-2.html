@@ -54,7 +54,7 @@
     </div>
     <div class="company">
         <h4 class="inv-title-1">Invoice To</h4>
-        <h2 class="name">{{customer.customer_name}}</h2>
+        <h2 class="name">{{customer.customer_name}} {{ customer.vendor_name}}</h2>
         <p class="gst">+91 {{customer.phone_number}}</p>
         <p class="invo-addr-2">
             <a href="mailto:{{invoice.0.customer.email}}">{{customer.email}}</a><br/>
