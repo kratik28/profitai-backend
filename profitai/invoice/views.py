@@ -542,7 +542,7 @@ class PurchaseInvoiceAPI(APIView):
                 vendor = get_object_or_404(Vendor, id=vendor_id)
                 
                 # Fetch the existing invoice
-                invoice = get_object_or_404(Invoice, id=invoice_id, is_purchase=True, vendor=vendor)
+                invoice = get_object_or_404(Invoice, id=invoice_id, is_purchase=True, vendor=vendor, business_profile=business_profile)
 
                 product_quantity = data.pop("product_and_quantity", [])
                 payment_type = data.get("payment_type", invoice.payment_type)
@@ -576,7 +576,7 @@ class PurchaseInvoiceAPI(APIView):
                 invoice.description = description
                 invoice.save()
                 # Update invoice items and batches
-                self.update_invoice_items(invoice, product_quantity)
+                self.update_invoice_items(invoice, product_quantity, business_profile)
 
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
@@ -607,7 +607,7 @@ class PurchaseInvoiceAPI(APIView):
             print(f"Error: {e}")
             return Response({"status_code": 500, "status": "error", "message": f"Internal server error: {e}"})
 
-    def update_invoice_items(self, invoice, product_quantity):
+    def update_invoice_items(self, invoice, product_quantity, business_profile):
         # Delete existing invoice items for the invoice
         InvoiceItem.objects.filter(invoice=invoice).delete()
 
@@ -619,6 +619,7 @@ class PurchaseInvoiceAPI(APIView):
             if not batchId:
                 productId = item.get("productId")
                 batch_data["product"] = Product.objects.filter(id=productId).first();
+                batch_data["business_profile"] = business_profile
     
             # Update or create Batch object
             batch, created = Batches.objects.update_or_create(
