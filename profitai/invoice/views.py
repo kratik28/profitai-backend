@@ -576,7 +576,7 @@ class PurchaseInvoiceAPI(APIView):
                 invoice.description = description
                 invoice.save()
                 # Update invoice items and batches
-                self.update_invoice_items(invoice, product_quantity, business_profile)
+                items = self.update_invoice_items(invoice, product_quantity, business_profile)
 
                 # Prepare response data
                 current_domain = request.build_absolute_uri('/media').rstrip('/')
@@ -584,7 +584,8 @@ class PurchaseInvoiceAPI(APIView):
                 id_range = range(1, len(product_quantity) + 1)
 
                 data = {
-                    "invoice": invoice_data,
+                   "invoice": invoice_data,
+                    "content": items,
                     "order_date": timezone.now(),
                     "business_profile": business_profile,
                     "customer": vendor,
@@ -647,7 +648,8 @@ class PurchaseInvoiceAPI(APIView):
         
         # Bulk create all new invoice items
         if invoice_item_data:
-            InvoiceItem.objects.bulk_create(invoice_item_data)
+            items= InvoiceItem.objects.bulk_create(invoice_item_data)
+            return items
             
     def delete(self, request, invoice_id):
         try:
