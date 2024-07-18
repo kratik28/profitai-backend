@@ -590,13 +590,16 @@ class PurchaseInvoiceAPI(APIView):
                     "customer": vendor,
                     "flag": page_break(id_range),
                 }
+                
+                # Generate invoice PDF
+                invoices = invoice_pdf_create(request, data, invoice.id)
 
                 # Prepare response
                 response = {
                     "status_code": 200,
                     "status": "success",
                     "message": "Invoice updated successfully",
-                    "invoice": InvoiceCreateSerializer(invoice, context={'current_domain': current_domain}).data,
+                    "invoice": InvoiceCreateSerializer(invoices, context={'current_domain': current_domain}).data,
                 }
                 return Response(response, status=status.HTTP_200_OK)
 
