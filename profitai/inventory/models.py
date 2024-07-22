@@ -6,7 +6,8 @@ class Product(models.Model):
     business_profile = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, null=False)
     product_name = models.CharField(max_length=50, null=False, default=None, blank=False)
     brand = models.CharField(max_length=50,default=None, null=True, blank=True)
-    product_type = models.ForeignKey(ProductType, on_delete=models.CASCADE, null=True)
+    product_type = models.ForeignKey(ProductType, on_delete=models.CASCADE, null=True) # not required
+    hsn_number = models.CharField(max_length=50, null=True, blank=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

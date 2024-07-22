@@ -84,6 +84,7 @@ class ProductListCreateView(APIView):
                 for batch_data in batches_data:
                     batch_data['business_profile'] = business_profile.id
                     batch_data['product'] = product.id
+                    batch_data['hsn_number'] = product.hsn_number
                     batch_serializer = BatchCreateSerializer(data=batch_data)
                     if batch_serializer.is_valid():
                        create_batch = batch_serializer.save()
@@ -219,6 +220,7 @@ class BatchCreateView(APIView):
             for batch_data in batches_data:
                 batch_data['business_profile'] = business_profile.id
                 batch_data['product'] = product.id
+                batch_data['hsn_number'] = product.hsn_number
                 batch_number = batch_data.get('batch_number')
 
                 existing_batch = Batches.objects.filter(batch_number=batch_number,product_id=product.id, business_profile=business_profile.id).first()
@@ -226,6 +228,7 @@ class BatchCreateView(APIView):
                     # Update existing batch
                     existing_batch.total_quantity += batch_data.get('total_quantity', 0)
                     existing_batch.remaining_quantity += batch_data.get('remaining_quantity', 0)
+                    existing_batch.hsn_number = product.hsn_number
                     existing_batch.save()
                     batches.append(existing_batch)
                 else:
@@ -261,7 +264,7 @@ class BatchCreateView(APIView):
             batch = Batches.objects.filter(id=batch_id, product__id=product_id, business_profile=business_profile).first()
             if not batch:
                 return Response({"status_code": 400, "status": "error", "message": "Batch not found"}, status=status.HTTP_400_BAD_REQUEST)
-
+ 
             batch_serializer = BatchUpdateSerializer(instance=batch, data=batch_data)
             if not batch_serializer.is_valid():
                 return Response({"status_code": 400, "status": "error", "message": "Batch update failed", "errors": batch_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
@@ -353,7 +356,6 @@ class InventorySortingFilterAPI(APIView):
             # Apply filtering
             queryset = self.apply_filtering(queryset, filter_criteria)
    
-            print(queryset)
             total_length_before_pagination = queryset.count()
             paginator = self.pagination_class()
             result_page = paginator.paginate_queryset(queryset, request, view=self)
@@ -552,7 +554,7 @@ class ProductRecommendListView(APIView):
     def get(self, request):
         # Fetch the active business profile for the logged-in user
         business_profile = BusinessProfile.objects.filter(
-            # user_profile=request.user, 
+            user_profile=request.user, 
             is_active=True, 
             is_deleted=False
         ).first()
@@ -572,6 +574,63 @@ class ProductRecommendListView(APIView):
         else:
             # If no business profile is found, return an empty queryset
             queryset = Product.objects.none()
+
+        # Paginate the queryset
+        paginator = self.pagination_class()
+        result_page = paginator.paginate_queryset(queryset, request, view=self)
+        total_pages = paginator.page.paginator.num_pages
+
+        # Serialize the paginated queryset
+        serializer = ProductSerializer(result_page, many=True)
+
+        # Create the response based on the 'type' query parameter
+        if request.query_params.get('type') == "all":
+            response = {
+                "status_code": 200,
+                "status": "success",
+                "message": "All Products Found Successfully!",
+                "data": ProductSerializer(queryset, many=True).data,
+            }
+        else:
+            response = {
+                "status_code": 200,
+                "status": "success",
+                "message": "Products Found Successfully!",
+                "total_pages": total_pages,
+                "data": serializer.data,
+                "next": paginator.get_next_link(),
+            }
+
+        return Response(response)
+    
+    
+class ProductPurchaseRecommendListView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = InfiniteScrollPagination
+
+    def get(self, request):
+        # Fetch the active business profile for the logged-in user
+        business_profile = BusinessProfile.objects.filter(user_profile=request.user, is_active=True, is_deleted=False ).first()
+
+        if not business_profile:
+            return Response({
+                "status_code": 200,
+                "status": "success",
+                "message": "No active business profile found.",
+                "data": [],
+            })
+
+        # Products with the total quantity remaining in their batches
+        queryset = Product.objects.filter(
+            business_profile=business_profile
+        ).annotate(
+            total_remaining_quantity=Sum('batches__remaining_quantity')
+        ).filter(
+            total_remaining_quantity__gt=0,
+            batches__is_deleted=False
+        ).select_related(
+            'business_profile'
+        ).order_by('total_remaining_quantity')
 
         # Paginate the queryset
         paginator = self.pagination_class()
