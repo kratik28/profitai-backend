@@ -13,13 +13,9 @@ class BusinessTypecreateView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self , request):
         try:
-            businesstype = []
             queryset =master_mod.BusinessType.objects.all()
-            static_data = ["FMCG", "pharma", "galla", "bakery", "electronics", "others"]
-            for i in static_data:
-                if queryset.filter(business_type__iexact=i).first() :
-                    businesstype.append(queryset.filter(business_type__iexact=i).first())
-            serializer = BusinessTypeSerializer(businesstype,many= True)
+            
+            serializer = BusinessTypeSerializer(queryset,many= True)
             response = {
                     "status_code": 200,
                     "status": "success",
@@ -179,13 +175,8 @@ class IndustrycreateView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self , request):
         try:
-            industry = []
             queryset =Industry.objects.all()
-            static_data = ["retail", "wholesale", "e-commerce", "super stockist", "manufacturing", "distributing", "others"]
-            for i in static_data:
-                if queryset.filter(industry_name__iexact=i).first() :
-                    industry.append(queryset.filter(industry_name__iexact=i).first())
-            serializer = IndustrySerializer(industry,many= True)
+            serializer = IndustrySerializer(queryset,many= True)
             response = {
                     "status_code": 200,
                     "status": "success",
