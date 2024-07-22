@@ -507,7 +507,7 @@ class PurchaseInvoiceAPI(APIView):
                 **batch_data
             )
             product = batch.product
-            price = float(batch.sales_price) * batch_data["total_quantity"]
+            price = float(batch.rate) * float(batch_data["remaining_quantity"])
             invoice_item_data.append(InvoiceItem(
                 invoice=invoice,
                 product=product,
